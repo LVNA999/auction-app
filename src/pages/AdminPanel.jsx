@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react";
-import { db } from "../firebase";
+import { db, auth } from "../firebase";
 import { ref, set, onValue, update } from "firebase/database";
+import { signOut, onAuthStateChanged } from "firebase/auth";
+import { useNavigate } from "react-router-dom";
 
 function AdminPanel() {
   const [price, setPrice] = useState(100000);
@@ -8,8 +10,21 @@ function AdminPanel() {
   const [binPrice, setBinPrice] = useState(500000);
   const [auctionEnded, setAuctionEnded] = useState(false);
   const [bidders, setBidders] = useState([]);
+  const [adminEmail, setAdminEmail] = useState("");
+  const navigate = useNavigate();
 
-  // Ambil data bidder realtime
+  // Cek login admin
+  useEffect(() => {
+    const unsub = onAuthStateChanged(auth, (user) => {
+      if (user) {
+        setAdminEmail(user.email);
+      } else {
+        navigate("/admin-login");
+      }
+    });
+    return () => unsub();
+  }, []);
+
   useEffect(() => {
     const bidderRef = ref(db, "auction/bidders");
     const unsub = onValue(bidderRef, (snapshot) => {
@@ -40,7 +55,6 @@ function AdminPanel() {
     };
   }, []);
 
-  // Fungsi menaikkan harga
   const increasePrice = () => {
     const newPrice = price + increment;
     setPrice(newPrice);
@@ -68,9 +82,27 @@ function AdminPanel() {
     return bidders.filter((b) => b.status === status).length;
   };
 
+  const handleLogout = async () => {
+    await signOut(auth);
+    navigate("/admin-login");
+  };
+
   return (
     <div className="min-h-screen bg-gray-100 p-6">
       <div className="max-w-4xl mx-auto bg-white p-6 rounded shadow">
+        {/* Header */}
+        <div className="flex justify-between items-center mb-4">
+          <p className="text-gray-600 text-sm">
+            Login sebagai: <strong>{adminEmail}</strong>
+          </p>
+          <button
+            onClick={handleLogout}
+            className="bg-red-500 hover:bg-red-600 text-white px-4 py-1 rounded"
+          >
+            Logout
+          </button>
+        </div>
+
         <h1 className="text-2xl font-bold mb-4">Admin Panel</h1>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
