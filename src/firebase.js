@@ -1,18 +1,18 @@
+// src/firebase.js
+
 // Import the functions you need from the SDKs you need
 import { initializeApp } from "firebase/app";
-import { getAuth, GoogleAuthProvider } from "firebase/auth"
+import { getAuth, GoogleAuthProvider } from "firebase/auth";
 import { getDatabase } from "firebase/database";
-// TODO: Add SDKs for Firebase products that you want to use
-// https://firebase.google.com/docs/web/setup#available-libraries
+import { getStorage } from "firebase/storage"; // ⬅️ Tambahan ini
 
-// Your web app's Firebase configuration
-// For Firebase JS SDK v7.20.0 and later, measurementId is optional
+// Firebase configuration
 const firebaseConfig = {
   apiKey: "AIzaSyBcT4OUabNTC0yp00UzMhBdycv-dSkIwKo",
   authDomain: "auction-app-1915f.firebaseapp.com",
   databaseURL: "https://auction-app-1915f-default-rtdb.firebaseio.com",
   projectId: "auction-app-1915f",
-  storageBucket: "auction-app-1915f.firebasestorage.app",
+  storageBucket: "auction-app-1915f.appspot.com", // ⬅️ Format domain diperbaiki
   messagingSenderId: "431863047991",
   appId: "1:431863047991:web:162bde6daf49897e295cb2",
 };
@@ -22,5 +22,7 @@ const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const provider = new GoogleAuthProvider();
 const db = getDatabase(app);
+const storage = getStorage(app); // ⬅️ Tambahkan inisialisasi storage
 
-export { auth, provider, db };
+// Export all Firebase services
+export { auth, provider, db, storage };
