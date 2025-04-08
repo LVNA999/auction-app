@@ -20,8 +20,6 @@ function AdminLogin() {
   };
 
   return (
-    <div className="bg-red-500 text-white font-bold text-center p-4 rounded-lg mb-4">
-  Tailwind CSS Aktif!
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-100 to-blue-300 px-4">
       <div className="bg-white p-8 rounded-2xl shadow-xl w-full max-w-md animate-fade-in">
         <div className="flex justify-center mb-6">
@@ -72,7 +70,6 @@ function AdminLogin() {
           </button>
         </form>
       </div>
-    </div>
     </div>
   );
 }
