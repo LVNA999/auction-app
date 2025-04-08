@@ -25,8 +25,8 @@ function AdminPanel() {
   }, []);
 
   useEffect(() => {
-    const bidderRef = ref(db, "auction/bidders");
-    const unsub = onValue(bidderRef, (snapshot) => {
+    const guestsRef = ref(db, "auction/guests");
+    const unsub = onValue(guestsRef, (snapshot) => {
       const data = snapshot.val() || {};
       const parsed = Object.entries(data).map(([id, value]) => ({
         id,
@@ -71,15 +71,15 @@ function AdminPanel() {
   };
 
   const verifyBidder = (id) => {
-    update(ref(db, `auction/bidders/${id}`), {
+    update(ref(db, `auction/guests/${id}`), {
       verified: true,
       status: "waiting",
-      active: true, // default aktif setelah verifikasi
+      active: true,
     });
   };
 
   const toggleBidderActive = (id, currentStatus) => {
-    update(ref(db, `auction/bidders/${id}`), {
+    update(ref(db, `auction/guests/${id}`), {
       active: !currentStatus,
     });
   };
@@ -96,7 +96,6 @@ function AdminPanel() {
   return (
     <div className="min-h-screen bg-gray-100 p-6">
       <div className="max-w-4xl mx-auto bg-white p-6 rounded shadow">
-        {/* Header */}
         <div className="flex justify-between items-center mb-4">
           <p className="text-gray-600 text-sm">
             Login sebagai: <strong>{adminEmail}</strong>

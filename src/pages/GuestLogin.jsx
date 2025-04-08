@@ -22,11 +22,11 @@ function GuestLogin() {
       localStorage.setItem("guestName", guestName);
       localStorage.setItem("guestEmail", guestEmail);
 
-      // Cek apakah user sudah pernah login sebelumnya
-      const snapshot = await get(ref(db, `auction/bidders/${guestId}`));
+      // Cek apakah user sudah pernah login sebelumnya di /guests
+      const snapshot = await get(ref(db, `auction/guests/${guestId}`));
       if (!snapshot.exists()) {
-        // Simpan user baru ke database
-        await set(ref(db, `auction/bidders/${guestId}`), {
+        // Simpan user baru ke database di /guests
+        await set(ref(db, `auction/guests/${guestId}`), {
           name: guestName,
           email: guestEmail,
           verified: false,
