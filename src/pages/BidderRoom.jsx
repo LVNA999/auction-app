@@ -12,6 +12,7 @@ function BidderRoom() {
   const [bidderId, setBidderId] = useState("");
   const [isVerified, setIsVerified] = useState(false);
   const [isActive, setIsActive] = useState(false);
+  const [isLoading, setIsLoading] = useState(true); // ✅ Tambahan
 
   const [itemImage, setItemImage] = useState("");
   const [itemName, setItemName] = useState("Barang Lelang");
@@ -43,6 +44,7 @@ function BidderRoom() {
         setIsVerified(false);
         setIsActive(false);
       }
+      setIsLoading(false); // ✅ Data sudah dimuat
     });
 
     return () => unsub();
@@ -102,6 +104,15 @@ function BidderRoom() {
   };
 
   const hasFolded = status?.toLowerCase() === "fold";
+
+  // ✅ Tambahkan loading screen
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center h-screen bg-gray-100">
+        <div className="text-center text-gray-600">Memuat data akun...</div>
+      </div>
+    );
+  }
 
   if (!isVerified || !isActive) {
     return (
