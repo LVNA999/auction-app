@@ -5,17 +5,17 @@ import { ref, onValue } from "firebase/database";
 
 function WaitingRoom() {
   const navigate = useNavigate();
-  const bidderId = localStorage.getItem("bidderId");
+  const guestId = localStorage.getItem("guestId"); // gunakan guestId, bukan bidderId
   const [status, setStatus] = useState("pending");
 
   useEffect(() => {
-    if (!bidderId) {
+    if (!guestId) {
       navigate("/guest-login");
       return;
     }
 
-    const bidderRef = ref(db, `auction/guests/${bidderId}`);
-    const unsub = onValue(bidderRef, (snapshot) => {
+    const guestRef = ref(db, `auction/guests/${guestId}`);
+    const unsub = onValue(guestRef, (snapshot) => {
       const data = snapshot.val();
 
       if (!data) {
@@ -29,6 +29,8 @@ function WaitingRoom() {
       setStatus(isVerified ? "verified" : "pending");
 
       if (isVerified && isActive) {
+        // Simpan bidderId ke localStorage agar halaman BidderRoom bisa mengaksesnya
+        localStorage.setItem("bidderId", guestId);
         navigate("/bidder-room");
       }
     });

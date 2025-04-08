@@ -12,20 +12,20 @@ function GuestLogin() {
     try {
       const result = await signInWithPopup(auth, provider);
       const user = result.user;
-      const bidderId = user.uid;
+      const guestId = user.uid;
       const guestName = user.displayName;
       const guestEmail = user.email;
 
-      // Simpan di localStorage dengan key yang konsisten dengan BidderRoom
-      localStorage.setItem("bidderId", bidderId);
+      // Simpan di localStorage dengan key yang konsisten
+      localStorage.setItem("guestId", guestId);
       localStorage.setItem("guestName", guestName);
       localStorage.setItem("guestEmail", guestEmail);
 
       // Cek apakah user sudah pernah login sebelumnya di /guests
-      const snapshot = await get(ref(db, `auction/guests/${bidderId}`));
+      const snapshot = await get(ref(db, `auction/guests/${guestId}`));
       if (!snapshot.exists()) {
         // Simpan user baru ke database di /guests
-        await set(ref(db, `auction/guests/${bidderId}`), {
+        await set(ref(db, `auction/guests/${guestId}`), {
           name: guestName,
           email: guestEmail,
           verified: false,

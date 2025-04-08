@@ -1,7 +1,16 @@
 import { useEffect, useState } from "react";
 import { db, auth, storage } from "../firebase";
-import { ref, set, onValue, update, uploadBytes, getDownloadURL } from "firebase/database";
-import { ref as storageRef } from "firebase/storage";
+import {
+  ref,
+  set,
+  onValue,
+  update,
+} from "firebase/database";
+import {
+  ref as storageRef,
+  uploadBytes,
+  getDownloadURL,
+} from "firebase/storage";
 import { signOut, onAuthStateChanged } from "firebase/auth";
 import { useNavigate } from "react-router-dom";
 
@@ -291,7 +300,9 @@ function AdminPanel() {
                         </button>
                       ) : (
                         <button
-                          onClick={() => toggleBidderActive(b.id, b.active)}
+                          onClick={() =>
+                            toggleBidderActive(b.id, b.active)
+                          }
                           className={`px-3 py-1 rounded text-white ${
                             b.active
                               ? "bg-yellow-500 hover:bg-yellow-600"

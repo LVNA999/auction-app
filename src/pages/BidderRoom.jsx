@@ -9,7 +9,7 @@ function BidderRoom() {
   const [calls, setCalls] = useState(0);
   const [folds, setFolds] = useState(0);
   const [auctionEnded, setAuctionEnded] = useState(false);
-  const [bidderId, setBidderId] = useState("");
+  const [guestId, setGuestId] = useState("");
   const [isVerified, setIsVerified] = useState(false);
   const [isActive, setIsActive] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
@@ -20,29 +20,26 @@ function BidderRoom() {
 
   const navigate = useNavigate();
 
-  // Ambil bidderId dari localStorage saat pertama kali
   useEffect(() => {
     const storedId = localStorage.getItem("bidderId");
     if (!storedId) {
       navigate("/guest-login");
       return;
     }
-    setBidderId(storedId);
+    setGuestId(storedId);
   }, [navigate]);
 
-  // Pantau status akun bidder
   useEffect(() => {
-    if (!bidderId) return;
-    const bidderRef = ref(db, `auction/guests/${bidderId}`);
+    if (!guestId) return;
+    const guestRef = ref(db, `auction/guests/${guestId}`);
 
-    const unsub = onValue(bidderRef, (snapshot) => {
+    const unsub = onValue(guestRef, (snapshot) => {
       const data = snapshot.val();
       if (data) {
         setStatus(data.status || null);
         setIsVerified(data.verified ?? false);
         setIsActive(data.active ?? false);
       } else {
-        // ❗ Akun tidak ditemukan → redirect
         localStorage.removeItem("bidderId");
         alert("Akun tidak ditemukan. Silakan login ulang.");
         navigate("/guest-login");
@@ -51,9 +48,8 @@ function BidderRoom() {
     });
 
     return () => unsub();
-  }, [bidderId, navigate]);
+  }, [guestId, navigate]);
 
-  // Pantau data harga, status akhir, dan data barang lelang
   useEffect(() => {
     const priceRef = ref(db, "auction/currentPrice");
     const endRef = ref(db, "auction/ended");
@@ -85,9 +81,9 @@ function BidderRoom() {
   }, []);
 
   const submitStatus = (newStatus) => {
-    if (!bidderId) return;
-    const bidderRef = ref(db, `auction/guests/${bidderId}`);
-    update(bidderRef, {
+    if (!guestId) return;
+    const guestRef = ref(db, `auction/guests/${guestId}`);
+    update(guestRef, {
       status: newStatus,
       timestamp: Date.now(),
     });
@@ -134,7 +130,7 @@ function BidderRoom() {
         <h1 className="text-2xl font-bold mb-4">Bidding Room</h1>
 
         <p className="text-sm text-gray-500 mb-2">
-          ID Kamu: <strong>{bidderId}</strong>
+          ID Kamu: <strong>{guestId}</strong>
         </p>
 
         <div className="mb-4">
