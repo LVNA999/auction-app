@@ -31,7 +31,7 @@ function BidderRoom() {
   // Pantau info bidder
   useEffect(() => {
     if (!bidderId) return;
-    const bidderRef = ref(db, `auction/bidders/${bidderId}`);
+    const bidderRef = ref(db, `auction/guests/${bidderId}`);
 
     const unsub = onValue(bidderRef, (snapshot) => {
       const data = snapshot.val();
@@ -82,7 +82,7 @@ function BidderRoom() {
 
   const submitStatus = (newStatus) => {
     if (!bidderId) return;
-    const bidderRef = ref(db, `auction/bidders/${bidderId}`);
+    const bidderRef = ref(db, `auction/guests/${bidderId}`);
     update(bidderRef, {
       status: newStatus,
       timestamp: Date.now(),
