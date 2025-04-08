@@ -12,7 +12,7 @@ function BidderRoom() {
   const [bidderId, setBidderId] = useState("");
   const [isVerified, setIsVerified] = useState(false);
   const [isActive, setIsActive] = useState(false);
-  const [isLoading, setIsLoading] = useState(true); // ✅ Tambahan
+  const [isLoading, setIsLoading] = useState(true);
 
   const [itemImage, setItemImage] = useState("");
   const [itemName, setItemName] = useState("Barang Lelang");
@@ -20,6 +20,7 @@ function BidderRoom() {
 
   const navigate = useNavigate();
 
+  // Ambil bidderId dari localStorage saat pertama kali
   useEffect(() => {
     const storedId = localStorage.getItem("bidderId");
     if (!storedId) {
@@ -27,9 +28,9 @@ function BidderRoom() {
       return;
     }
     setBidderId(storedId);
-  }, []);
+  }, [navigate]);
 
-  // Pantau info bidder
+  // Pantau status akun bidder
   useEffect(() => {
     if (!bidderId) return;
     const bidderRef = ref(db, `auction/guests/${bidderId}`);
@@ -41,16 +42,18 @@ function BidderRoom() {
         setIsVerified(data.verified ?? false);
         setIsActive(data.active ?? false);
       } else {
-        setIsVerified(false);
-        setIsActive(false);
+        // ❗ Akun tidak ditemukan → redirect
+        localStorage.removeItem("bidderId");
+        alert("Akun tidak ditemukan. Silakan login ulang.");
+        navigate("/guest-login");
       }
-      setIsLoading(false); // ✅ Data sudah dimuat
+      setIsLoading(false);
     });
 
     return () => unsub();
-  }, [bidderId]);
+  }, [bidderId, navigate]);
 
-  // Pantau harga, status akhir lelang, dan data barang
+  // Pantau data harga, status akhir, dan data barang lelang
   useEffect(() => {
     const priceRef = ref(db, "auction/currentPrice");
     const endRef = ref(db, "auction/ended");
@@ -62,8 +65,7 @@ function BidderRoom() {
     });
 
     const unsubEnd = onValue(endRef, (snapshot) => {
-      const ended = snapshot.val();
-      setAuctionEnded(!!ended);
+      setAuctionEnded(!!snapshot.val());
     });
 
     const unsubItem = onValue(itemRef, (snapshot) => {
@@ -105,7 +107,6 @@ function BidderRoom() {
 
   const hasFolded = status?.toLowerCase() === "fold";
 
-  // ✅ Tambahkan loading screen
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-screen bg-gray-100">

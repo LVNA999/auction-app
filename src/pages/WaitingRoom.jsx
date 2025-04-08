@@ -5,13 +5,16 @@ import { ref, onValue } from "firebase/database";
 
 function WaitingRoom() {
   const navigate = useNavigate();
-  const guestId = localStorage.getItem("guestId");
+  const bidderId = localStorage.getItem("bidderId");
   const [status, setStatus] = useState("pending");
 
   useEffect(() => {
-    if (!guestId) return navigate("/guest-login");
+    if (!bidderId) {
+      navigate("/guest-login");
+      return;
+    }
 
-    const bidderRef = ref(db, `auction/bidders/${guestId}`);
+    const bidderRef = ref(db, `auction/guests/${bidderId}`);
     const unsub = onValue(bidderRef, (snapshot) => {
       const data = snapshot.val();
 
@@ -26,7 +29,6 @@ function WaitingRoom() {
       setStatus(isVerified ? "verified" : "pending");
 
       if (isVerified && isActive) {
-        localStorage.setItem("bidderId", guestId);
         navigate("/bidder-room");
       }
     });

@@ -1,4 +1,3 @@
-import { useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { auth, db } from "../firebase";
 import { GoogleAuthProvider, signInWithPopup } from "firebase/auth";
@@ -13,20 +12,20 @@ function GuestLogin() {
     try {
       const result = await signInWithPopup(auth, provider);
       const user = result.user;
-      const guestId = user.uid;
+      const bidderId = user.uid;
       const guestName = user.displayName;
       const guestEmail = user.email;
 
-      // Simpan di localStorage
-      localStorage.setItem("guestId", guestId);
+      // Simpan di localStorage dengan key yang konsisten dengan BidderRoom
+      localStorage.setItem("bidderId", bidderId);
       localStorage.setItem("guestName", guestName);
       localStorage.setItem("guestEmail", guestEmail);
 
       // Cek apakah user sudah pernah login sebelumnya di /guests
-      const snapshot = await get(ref(db, `auction/guests/${guestId}`));
+      const snapshot = await get(ref(db, `auction/guests/${bidderId}`));
       if (!snapshot.exists()) {
         // Simpan user baru ke database di /guests
-        await set(ref(db, `auction/guests/${guestId}`), {
+        await set(ref(db, `auction/guests/${bidderId}`), {
           name: guestName,
           email: guestEmail,
           verified: false,
