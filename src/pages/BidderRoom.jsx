@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { db } from "../firebase";
-import { ref, onValue, set } from "firebase/database";
+import { ref, onValue, update } from "firebase/database";
+import { useNavigate } from "react-router-dom";
 
 function BidderRoom() {
   const [currentPrice, setCurrentPrice] = useState(0);
@@ -9,21 +10,41 @@ function BidderRoom() {
   const [folds, setFolds] = useState(0);
   const [auctionEnded, setAuctionEnded] = useState(false);
   const [bidderId, setBidderId] = useState("");
+  const [isVerified, setIsVerified] = useState(false);
+  const [isActive, setIsActive] = useState(false);
+
+  const navigate = useNavigate();
 
   useEffect(() => {
-    let storedId = localStorage.getItem("bidderId");
+    const storedId = localStorage.getItem("bidderId");
     if (!storedId) {
-      storedId = prompt("Masukkan nama atau ID kamu untuk bidding:");
-      if (storedId) {
-        localStorage.setItem("bidderId", storedId);
-      } else {
-        storedId = "anonymous_" + Math.floor(Math.random() * 10000);
-        localStorage.setItem("bidderId", storedId);
-      }
+      navigate("/guest-login");
+      return;
     }
     setBidderId(storedId);
   }, []);
 
+  // Pantau info bidder
+  useEffect(() => {
+    if (!bidderId) return;
+    const bidderRef = ref(db, `auction/bidders/${bidderId}`);
+
+    const unsub = onValue(bidderRef, (snapshot) => {
+      const data = snapshot.val();
+      if (data) {
+        setStatus(data.status || null);
+        setIsVerified(data.verified ?? false);
+        setIsActive(data.active ?? false);
+      } else {
+        setIsVerified(false);
+        setIsActive(false);
+      }
+    });
+
+    return () => unsub();
+  }, [bidderId]);
+
+  // Pantau harga dan status akhir lelang
   useEffect(() => {
     const priceRef = ref(db, "auction/currentPrice");
     const endRef = ref(db, "auction/ended");
@@ -44,25 +65,10 @@ function BidderRoom() {
     };
   }, []);
 
-  // Pantau status bidder dari Firebase
-  useEffect(() => {
-    if (!bidderId) return;
-
-    const bidderRef = ref(db, `auction/bidders/${bidderId}`);
-    const unsub = onValue(bidderRef, (snapshot) => {
-      const data = snapshot.val();
-      if (data?.status) {
-        setStatus(data.status);
-      }
-    });
-
-    return () => unsub();
-  }, [bidderId]);
-
   const submitStatus = (newStatus) => {
     if (!bidderId) return;
     const bidderRef = ref(db, `auction/bidders/${bidderId}`);
-    set(bidderRef, {
+    update(bidderRef, {
       status: newStatus,
       timestamp: Date.now(),
     });
@@ -82,12 +88,27 @@ function BidderRoom() {
 
   const hasFolded = status?.toLowerCase() === "fold";
 
+  if (!isVerified || !isActive) {
+    return (
+      <div className="flex items-center justify-center h-screen bg-gray-100">
+        <div className="text-center bg-white px-6 py-4 rounded shadow">
+          <h1 className="text-xl font-bold mb-2 text-red-600">Akses Ditolak</h1>
+          <p className="text-gray-700">
+            Akun kamu belum diverifikasi atau belum diaktifkan oleh admin.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-gray-100 p-6">
       <div className="max-w-xl mx-auto bg-white rounded-xl shadow p-6">
         <h1 className="text-2xl font-bold mb-4">Bidding Room</h1>
 
-        <p className="text-sm text-gray-500 mb-2">ID Kamu: <strong>{bidderId}</strong></p>
+        <p className="text-sm text-gray-500 mb-2">
+          ID Kamu: <strong>{bidderId}</strong>
+        </p>
 
         <div className="mb-4">
           <img
@@ -132,7 +153,9 @@ function BidderRoom() {
             {status && (
               <p className="text-center mb-4">
                 Kamu memilih:{" "}
-                <span className="font-semibold text-indigo-600">{status.toUpperCase()}</span>
+                <span className="font-semibold text-indigo-600">
+                  {status.toUpperCase()}
+                </span>
               </p>
             )}
           </>

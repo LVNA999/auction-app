@@ -5,32 +5,29 @@ import { ref, onValue } from "firebase/database";
 
 function WaitingRoom() {
   const navigate = useNavigate();
-  const guestId = localStorage.getItem("guestId"); // perbaikan nama key
+  const guestId = localStorage.getItem("guestId");
   const [status, setStatus] = useState("pending");
 
   useEffect(() => {
     if (!guestId) return navigate("/guest-login");
 
-    // Pantau status guest dari path /guests
-    const guestRef = ref(db, `auction/guests/${guestId}`);
-    const unsub = onValue(guestRef, (snapshot) => {
+    const bidderRef = ref(db, `auction/bidders/${guestId}`);
+    const unsub = onValue(bidderRef, (snapshot) => {
       const data = snapshot.val();
 
       if (!data) {
-        // Jika guest sudah dihapus dari /guests,
-        // cek apakah dia sudah dipindahkan ke /bidders
-        const bidderRef = ref(db, `auction/bidders/${guestId}`);
-        onValue(bidderRef, (bidderSnap) => {
-          if (bidderSnap.exists()) {
-            // Pindah ke BidderRoom
-            localStorage.setItem("bidderId", guestId);
-            navigate("/bidder-room");
-          } else {
-            setStatus("not found");
-          }
-        });
-      } else {
-        setStatus(data.status || "pending");
+        setStatus("not found");
+        return;
+      }
+
+      const isVerified = data.verified;
+      const isActive = data.active;
+
+      setStatus(isVerified ? "verified" : "pending");
+
+      if (isVerified && isActive) {
+        localStorage.setItem("bidderId", guestId);
+        navigate("/bidder-room");
       }
     });
 
@@ -39,9 +36,23 @@ function WaitingRoom() {
 
   return (
     <div className="flex items-center justify-center h-screen bg-gray-100">
-      <div className="text-center">
-        <h1 className="text-xl font-bold mb-2">Menunggu Verifikasi Admin...</h1>
-        <p>Status: {status}</p>
+      <div className="text-center bg-white px-8 py-6 rounded shadow">
+        <h1 className="text-2xl font-bold mb-2">Menunggu Verifikasi Admin...</h1>
+        <p className="text-gray-600 mb-2">
+          Status akun: <span className="font-semibold capitalize">{status}</span>
+        </p>
+
+        {status === "pending" && (
+          <p className="text-sm text-orange-500">
+            Mohon tunggu, akun Anda sedang menunggu verifikasi dari admin.
+          </p>
+        )}
+
+        {status === "not found" && (
+          <p className="text-sm text-red-500">
+            Akun tidak ditemukan. Silakan login ulang.
+          </p>
+        )}
       </div>
     </div>
   );
