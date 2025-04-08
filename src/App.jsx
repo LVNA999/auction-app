@@ -5,7 +5,7 @@ import WaitingRoom from "./pages/WaitingRoom";
 import BidderRoom from "./pages/BidderRoom";
 import AdminLogin from "./pages/AdminLogin";
 import AdminPanel from "./pages/AdminPanel";
-import RequireAuth from "./components/RequireAuth"; // <== tambahkan ini
+import ProtectedAdminRoute from "./components/ProtectedAdminRoute";
 
 function App() {
   return (
@@ -21,9 +21,9 @@ function App() {
         <Route
           path="/admin"
           element={
-            <RequireAuth>
+            <ProtectedAdminRoute>
               <AdminPanel />
-            </RequireAuth>
+            </ProtectedAdminRoute>
           }
         />
       </Routes>
