@@ -60,8 +60,7 @@ function AdminPanel() {
 
     const endedRef = ref(db, "auction/ended");
     const unsubEnded = onValue(endedRef, (snap) => {
-      const ended = snap.val();
-      setAuctionEnded(ended || false);
+      setAuctionEnded(snap.val() || false);
     });
 
     const startedRef = ref(db, "auction/started");
@@ -69,13 +68,15 @@ function AdminPanel() {
       setAuctionStarted(snap.val() || false);
     });
 
-    const imageRef = ref(db, "auction/image");
-    const nameRef = ref(db, "auction/itemName");
-    const descRef = ref(db, "auction/itemDesc");
-
-    onValue(imageRef, (snap) => setImageURL(snap.val() || ""));
-    onValue(nameRef, (snap) => setItemName(snap.val() || ""));
-    onValue(descRef, (snap) => setItemDesc(snap.val() || ""));
+    const itemRef = ref(db, "auction/item");
+    onValue(itemRef, (snap) => {
+      const data = snap.val();
+      if (data) {
+        setItemName(data.name || "");
+        setItemDesc(data.description || "");
+        setImageURL(data.image || "");
+      }
+    });
 
     return () => {
       unsub();
@@ -127,13 +128,13 @@ function AdminPanel() {
     await uploadBytes(imgRef, imageFile);
     const downloadURL = await getDownloadURL(imgRef);
 
-    await set(ref(db, "auction"), {
-      currentPrice: price,
+    await set(ref(db, "auction/currentPrice"), price);
+    await set(ref(db, "auction/started"), true);
+    await set(ref(db, "auction/ended"), false);
+    await set(ref(db, "auction/item"), {
+      name: itemName,
+      description: itemDesc,
       image: downloadURL,
-      itemName,
-      itemDesc,
-      started: true,
-      ended: false,
     });
 
     setImageURL(downloadURL);
@@ -167,8 +168,8 @@ function AdminPanel() {
 
         <h1 className="text-2xl font-bold mb-4">Admin Panel</h1>
 
+        {/* === Bagian Barang dan Kontrol === */}
         <div className="grid md:grid-cols-2 gap-6">
-          {/* === Panel Barang dan Kontrol === */}
           <div>
             {imageURL ? (
               <img src={imageURL} alt="Barang" className="rounded mb-4" />
@@ -289,7 +290,6 @@ function AdminPanel() {
                         </p>
                       )}
                     </div>
-
                     <div className="flex gap-2">
                       {!b.verified ? (
                         <button
@@ -300,9 +300,7 @@ function AdminPanel() {
                         </button>
                       ) : (
                         <button
-                          onClick={() =>
-                            toggleBidderActive(b.id, b.active)
-                          }
+                          onClick={() => toggleBidderActive(b.id, b.active)}
                           className={`px-3 py-1 rounded text-white ${
                             b.active
                               ? "bg-yellow-500 hover:bg-yellow-600"
