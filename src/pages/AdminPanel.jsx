@@ -13,7 +13,6 @@ function AdminPanel() {
   const [adminEmail, setAdminEmail] = useState("");
   const navigate = useNavigate();
 
-  // Cek login admin
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, (user) => {
       if (user) {
@@ -75,6 +74,13 @@ function AdminPanel() {
     update(ref(db, `auction/bidders/${id}`), {
       verified: true,
       status: "waiting",
+      active: true, // default aktif setelah verifikasi
+    });
+  };
+
+  const toggleBidderActive = (id, currentStatus) => {
+    update(ref(db, `auction/bidders/${id}`), {
+      active: !currentStatus,
     });
   };
 
@@ -163,7 +169,6 @@ function AdminPanel() {
               <p>Jumlah Call: {countStatus("call")}</p>
               <p>Jumlah Fold: {countStatus("fold")}</p>
 
-              {/* Daftar CALL */}
               <div className="mt-4">
                 <p className="font-semibold">Daftar Bidder yang CALL:</p>
                 {bidders.filter((b) => b.status === "call").length === 0 ? (
@@ -189,29 +194,53 @@ function AdminPanel() {
             )}
           </div>
 
-          {/* === Panel Verifikasi === */}
+          {/* === Panel Verifikasi dan Kontrol === */}
           <div>
-            <h2 className="text-xl font-semibold mb-4">Verifikasi Guest</h2>
-            {bidders.filter((b) => !b.verified).length === 0 ? (
-              <p className="text-sm text-gray-600">Tidak ada guest yang menunggu.</p>
+            <h2 className="text-xl font-semibold mb-4">Manajemen Bidder</h2>
+
+            {bidders.length === 0 ? (
+              <p className="text-sm text-gray-600">Belum ada pendaftar.</p>
             ) : (
-              <ul className="space-y-2">
-                {bidders
-                  .filter((b) => !b.verified)
-                  .map((b) => (
-                    <li
-                      key={b.id}
-                      className="flex justify-between items-center bg-gray-100 px-3 py-2 rounded"
-                    >
-                      <span>{b.name}</span>
-                      <button
-                        onClick={() => verifyBidder(b.id)}
-                        className="bg-green-500 text-white px-4 py-1 rounded hover:bg-green-600"
-                      >
-                        Verifikasi
-                      </button>
-                    </li>
-                  ))}
+              <ul className="space-y-3">
+                {bidders.map((b) => (
+                  <li
+                    key={b.id}
+                    className="bg-gray-100 px-4 py-2 rounded flex justify-between items-center"
+                  >
+                    <div>
+                      <p className="font-medium">
+                        {b.name} {b.verified ? "(Terverifikasi)" : "(Pending)"}
+                      </p>
+                      {b.verified && (
+                        <p className="text-sm text-gray-600">
+                          Status: {b.active ? "Aktif" : "Nonaktif"}
+                        </p>
+                      )}
+                    </div>
+
+                    <div className="flex gap-2">
+                      {!b.verified ? (
+                        <button
+                          onClick={() => verifyBidder(b.id)}
+                          className="bg-green-500 text-white px-3 py-1 rounded hover:bg-green-600"
+                        >
+                          Verifikasi
+                        </button>
+                      ) : (
+                        <button
+                          onClick={() => toggleBidderActive(b.id, b.active)}
+                          className={`px-3 py-1 rounded text-white ${
+                            b.active
+                              ? "bg-yellow-500 hover:bg-yellow-600"
+                              : "bg-blue-500 hover:bg-blue-600"
+                          }`}
+                        >
+                          {b.active ? "Nonaktifkan" : "Aktifkan"}
+                        </button>
+                      )}
+                    </div>
+                  </li>
+                ))}
               </ul>
             )}
           </div>

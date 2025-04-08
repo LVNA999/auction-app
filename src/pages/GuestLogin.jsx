@@ -1,55 +1,57 @@
-import { useState } from "react";
+// GuestLogin.jsx
+import { useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { db } from "../firebase";
-import { ref, set } from "firebase/database";
+import { auth, db } from "../firebase";
+import { GoogleAuthProvider, signInWithPopup } from "firebase/auth";
+import { ref, set, get } from "firebase/database";
 
-function GuestForm() {
-  const [name, setName] = useState("");
+function GuestLogin() {
   const navigate = useNavigate();
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    if (!name.trim()) return;
+  const handleGoogleLogin = async () => {
+    const provider = new GoogleAuthProvider();
 
-    const guestId = `guest_${Date.now()}`;
-    localStorage.setItem("guestId", guestId);
-    localStorage.setItem("guestName", name);
+    try {
+      const result = await signInWithPopup(auth, provider);
+      const user = result.user;
+      const guestId = user.uid;
+      const guestName = user.displayName;
 
-    // Simpan ke database di path 'guests'
-    await set(ref(db, `auction/guests/${guestId}`), {
-      name,
-      status: "pending", // akan diverifikasi oleh admin
-    });
+      // Simpan di localStorage
+      localStorage.setItem("guestId", guestId);
+      localStorage.setItem("guestName", guestName);
 
-    alert("Pendaftaran berhasil. Menunggu verifikasi admin.");
-    navigate("/waiting-room");
+      // Cek apakah user sudah pernah login sebelumnya
+      const snapshot = await get(ref(db, `auction/guests/${guestId}`));
+      if (!snapshot.exists()) {
+        // Simpan user baru ke database
+        await set(ref(db, `auction/guests/${guestId}`), {
+          name: guestName,
+          status: "pending",
+        });
+      }
+
+      alert("Login berhasil. Menunggu verifikasi admin.");
+      navigate("/waiting-room");
+    } catch (error) {
+      console.error("Google sign-in error", error);
+      alert("Login gagal. Coba lagi.");
+    }
   };
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-100">
-      <form
-        onSubmit={handleSubmit}
-        className="bg-white p-6 rounded shadow w-96"
-      >
-        <h1 className="text-2xl font-bold mb-4 text-center">
-          Daftar Sebagai Guest
-        </h1>
-        <input
-          type="text"
-          placeholder="Nama kamu"
-          className="w-full border p-2 mb-4 rounded"
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-        />
+      <div className="bg-white p-6 rounded shadow w-96 text-center">
+        <h1 className="text-2xl font-bold mb-6">Login sebagai Guest</h1>
         <button
-          type="submit"
-          className="w-full bg-blue-500 text-white py-2 rounded hover:bg-blue-600"
+          onClick={handleGoogleLogin}
+          className="w-full bg-red-500 hover:bg-red-600 text-white py-2 rounded"
         >
-          Daftar
+          Login dengan Gmail
         </button>
-      </form>
+      </div>
     </div>
   );
 }
 
-export default GuestForm;
+export default GuestLogin;
