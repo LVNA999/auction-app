@@ -1,16 +1,24 @@
 import { useEffect, useState } from "react";
-import { db, auth } from "../firebase";
-import { ref, set, onValue, update } from "firebase/database";
+import { db, auth, storage } from "../firebase";
+import { ref, set, onValue, update, uploadBytes, getDownloadURL } from "firebase/database";
+import { ref as storageRef } from "firebase/storage";
 import { signOut, onAuthStateChanged } from "firebase/auth";
 import { useNavigate } from "react-router-dom";
 
 function AdminPanel() {
-  const [price, setPrice] = useState(100000);
+  const [price, setPrice] = useState(0);
   const [increment, setIncrement] = useState(10000);
   const [binPrice, setBinPrice] = useState(500000);
   const [auctionEnded, setAuctionEnded] = useState(false);
   const [bidders, setBidders] = useState([]);
   const [adminEmail, setAdminEmail] = useState("");
+
+  const [imageFile, setImageFile] = useState(null);
+  const [imageURL, setImageURL] = useState("");
+  const [itemName, setItemName] = useState("");
+  const [itemDesc, setItemDesc] = useState("");
+  const [auctionStarted, setAuctionStarted] = useState(false);
+
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -44,13 +52,27 @@ function AdminPanel() {
     const endedRef = ref(db, "auction/ended");
     const unsubEnded = onValue(endedRef, (snap) => {
       const ended = snap.val();
-      if (ended) setAuctionEnded(true);
+      setAuctionEnded(ended || false);
     });
+
+    const startedRef = ref(db, "auction/started");
+    const unsubStarted = onValue(startedRef, (snap) => {
+      setAuctionStarted(snap.val() || false);
+    });
+
+    const imageRef = ref(db, "auction/image");
+    const nameRef = ref(db, "auction/itemName");
+    const descRef = ref(db, "auction/itemDesc");
+
+    onValue(imageRef, (snap) => setImageURL(snap.val() || ""));
+    onValue(nameRef, (snap) => setItemName(snap.val() || ""));
+    onValue(descRef, (snap) => setItemDesc(snap.val() || ""));
 
     return () => {
       unsub();
       unsubPrice();
       unsubEnded();
+      unsubStarted();
     };
   }, []);
 
@@ -67,7 +89,9 @@ function AdminPanel() {
 
   const endAuction = () => {
     setAuctionEnded(true);
+    setAuctionStarted(false);
     set(ref(db, "auction/ended"), true);
+    set(ref(db, "auction/started"), false);
   };
 
   const verifyBidder = (id) => {
@@ -84,6 +108,30 @@ function AdminPanel() {
     });
   };
 
+  const handleStartAuction = async () => {
+    if (!imageFile || !itemName || !itemDesc || price <= 0) {
+      alert("Lengkapi semua data terlebih dahulu.");
+      return;
+    }
+
+    const imgRef = storageRef(storage, `items/${Date.now()}-${imageFile.name}`);
+    await uploadBytes(imgRef, imageFile);
+    const downloadURL = await getDownloadURL(imgRef);
+
+    await set(ref(db, "auction"), {
+      currentPrice: price,
+      image: downloadURL,
+      itemName,
+      itemDesc,
+      started: true,
+      ended: false,
+    });
+
+    setImageURL(downloadURL);
+    setAuctionStarted(true);
+    alert("Lelang dimulai!");
+  };
+
   const countStatus = (status) => {
     return bidders.filter((b) => b.status === status).length;
   };
@@ -95,9 +143,9 @@ function AdminPanel() {
 
   return (
     <div className="min-h-screen bg-gray-100 p-6">
-      <div className="max-w-4xl mx-auto bg-white p-6 rounded shadow">
+      <div className="max-w-5xl mx-auto bg-white p-6 rounded shadow">
         <div className="flex justify-between items-center mb-4">
-          <p className="text-gray-600 text-sm">
+          <p className="text-sm text-gray-600">
             Login sebagai: <strong>{adminEmail}</strong>
           </p>
           <button
@@ -110,17 +158,55 @@ function AdminPanel() {
 
         <h1 className="text-2xl font-bold mb-4">Admin Panel</h1>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          {/* === Panel Lelang === */}
+        <div className="grid md:grid-cols-2 gap-6">
+          {/* === Panel Barang dan Kontrol === */}
           <div>
-            <img
-              src="https://via.placeholder.com/300x200.png?text=Barang+Lelang"
-              alt="Barang"
-              className="rounded mb-4"
-            />
+            {imageURL ? (
+              <img src={imageURL} alt="Barang" className="rounded mb-4" />
+            ) : (
+              <div className="h-40 bg-gray-200 rounded mb-4 flex items-center justify-center">
+                <span className="text-gray-400">Belum ada gambar</span>
+              </div>
+            )}
 
-            <h2 className="text-xl font-semibold mb-2">Nama Barang</h2>
-            <p className="mb-4">Deskripsi singkat tentang barang yang dilelang.</p>
+            {!auctionStarted && (
+              <>
+                <input
+                  type="file"
+                  accept="image/*"
+                  onChange={(e) => setImageFile(e.target.files[0])}
+                  className="mb-3"
+                />
+                <input
+                  type="text"
+                  placeholder="Nama Barang"
+                  value={itemName}
+                  onChange={(e) => setItemName(e.target.value)}
+                  className="w-full border p-2 mb-2 rounded"
+                />
+                <textarea
+                  placeholder="Deskripsi"
+                  value={itemDesc}
+                  onChange={(e) => setItemDesc(e.target.value)}
+                  className="w-full border p-2 mb-2 rounded"
+                />
+                <input
+                  type="number"
+                  min={1000}
+                  step={1000}
+                  placeholder="Harga Awal"
+                  value={price}
+                  onChange={(e) => setPrice(Number(e.target.value))}
+                  className="w-full border p-2 mb-4 rounded"
+                />
+                <button
+                  onClick={handleStartAuction}
+                  className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded mb-4"
+                >
+                  Mulai Lelang
+                </button>
+              </>
+            )}
 
             <div className="bg-gray-100 p-4 rounded mb-4">
               <p className="text-lg font-medium">Harga Saat Ini:</p>
@@ -140,14 +226,15 @@ function AdminPanel() {
               value={increment}
               onChange={(e) => setIncrement(Number(e.target.value))}
               className="w-full border p-2 mb-4 rounded"
+              disabled={!auctionStarted || auctionEnded}
             />
 
             <div className="flex space-x-4 mb-4">
               <button
                 onClick={increasePrice}
-                disabled={auctionEnded}
+                disabled={!auctionStarted || auctionEnded}
                 className={`px-6 py-2 rounded ${
-                  auctionEnded
+                  auctionEnded || !auctionStarted
                     ? "bg-gray-400"
                     : "bg-blue-500 hover:bg-blue-600 text-white"
                 }`}
@@ -156,34 +243,11 @@ function AdminPanel() {
               </button>
               <button
                 onClick={endAuction}
-                disabled={auctionEnded}
+                disabled={!auctionStarted || auctionEnded}
                 className="px-6 py-2 rounded bg-red-500 text-white hover:bg-red-600"
               >
                 Akhiri Lelang
               </button>
-            </div>
-
-            <div className="bg-white border p-4 rounded">
-              <p className="font-medium">Status Bidder:</p>
-              <p>Jumlah Call: {countStatus("call")}</p>
-              <p>Jumlah Fold: {countStatus("fold")}</p>
-
-              <div className="mt-4">
-                <p className="font-semibold">Daftar Bidder yang CALL:</p>
-                {bidders.filter((b) => b.status === "call").length === 0 ? (
-                  <p className="text-sm text-gray-500">
-                    Belum ada bidder yang CALL.
-                  </p>
-                ) : (
-                  <ul className="list-disc list-inside text-sm text-gray-700">
-                    {bidders
-                      .filter((b) => b.status === "call")
-                      .map((b) => (
-                        <li key={b.id}>{b.name}</li>
-                      ))}
-                  </ul>
-                )}
-              </div>
             </div>
 
             {auctionEnded && (
@@ -193,7 +257,7 @@ function AdminPanel() {
             )}
           </div>
 
-          {/* === Panel Verifikasi dan Kontrol === */}
+          {/* === Panel Verifikasi dan Manajemen === */}
           <div>
             <h2 className="text-xl font-semibold mb-4">Manajemen Bidder</h2>
 
@@ -242,6 +306,12 @@ function AdminPanel() {
                 ))}
               </ul>
             )}
+
+            <div className="mt-6">
+              <p className="font-medium">Status Bidder:</p>
+              <p>Jumlah Call: {countStatus("call")}</p>
+              <p>Jumlah Fold: {countStatus("fold")}</p>
+            </div>
           </div>
         </div>
       </div>

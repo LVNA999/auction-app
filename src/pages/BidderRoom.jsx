@@ -13,6 +13,10 @@ function BidderRoom() {
   const [isVerified, setIsVerified] = useState(false);
   const [isActive, setIsActive] = useState(false);
 
+  const [itemImage, setItemImage] = useState("");
+  const [itemName, setItemName] = useState("Barang Lelang");
+  const [itemDescription, setItemDescription] = useState("Deskripsi belum tersedia.");
+
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -44,10 +48,11 @@ function BidderRoom() {
     return () => unsub();
   }, [bidderId]);
 
-  // Pantau harga dan status akhir lelang
+  // Pantau harga, status akhir lelang, dan data barang
   useEffect(() => {
     const priceRef = ref(db, "auction/currentPrice");
     const endRef = ref(db, "auction/ended");
+    const itemRef = ref(db, "auction/item");
 
     const unsubPrice = onValue(priceRef, (snapshot) => {
       const val = snapshot.val();
@@ -59,9 +64,19 @@ function BidderRoom() {
       setAuctionEnded(!!ended);
     });
 
+    const unsubItem = onValue(itemRef, (snapshot) => {
+      const data = snapshot.val();
+      if (data) {
+        setItemImage(data.image || "");
+        setItemName(data.name || "Barang Lelang");
+        setItemDescription(data.description || "Deskripsi belum tersedia.");
+      }
+    });
+
     return () => {
       unsubPrice();
       unsubEnd();
+      unsubItem();
     };
   }, []);
 
@@ -112,12 +127,12 @@ function BidderRoom() {
 
         <div className="mb-4">
           <img
-            src="https://via.placeholder.com/300x200.png?text=Barang+Lelang"
+            src={itemImage || "https://via.placeholder.com/300x200.png?text=Barang+Lelang"}
             alt="Barang"
-            className="rounded"
+            className="rounded w-full object-cover max-h-60"
           />
-          <h2 className="text-xl font-semibold mt-2">Nama Barang</h2>
-          <p>Deskripsi singkat tentang barang yang dilelang.</p>
+          <h2 className="text-xl font-semibold mt-2">{itemName}</h2>
+          <p>{itemDescription}</p>
         </div>
 
         <div className="bg-gray-100 p-4 rounded mb-4">
