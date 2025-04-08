@@ -1,4 +1,3 @@
-// GuestLogin.jsx
 import { useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { auth, db } from "../firebase";
@@ -16,18 +15,23 @@ function GuestLogin() {
       const user = result.user;
       const guestId = user.uid;
       const guestName = user.displayName;
+      const guestEmail = user.email;
 
       // Simpan di localStorage
       localStorage.setItem("guestId", guestId);
       localStorage.setItem("guestName", guestName);
+      localStorage.setItem("guestEmail", guestEmail);
 
       // Cek apakah user sudah pernah login sebelumnya
-      const snapshot = await get(ref(db, `auction/guests/${guestId}`));
+      const snapshot = await get(ref(db, `auction/bidders/${guestId}`));
       if (!snapshot.exists()) {
         // Simpan user baru ke database
-        await set(ref(db, `auction/guests/${guestId}`), {
+        await set(ref(db, `auction/bidders/${guestId}`), {
           name: guestName,
+          email: guestEmail,
+          verified: false,
           status: "pending",
+          active: true,
         });
       }
 
