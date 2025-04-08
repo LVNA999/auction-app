@@ -20,6 +20,7 @@ function BidderRoom() {
 
   const navigate = useNavigate();
 
+  // Ambil ID dari localStorage
   useEffect(() => {
     const storedId = localStorage.getItem("bidderId");
     if (!storedId) {
@@ -29,6 +30,7 @@ function BidderRoom() {
     setGuestId(storedId);
   }, [navigate]);
 
+  // Pantau status guest
   useEffect(() => {
     if (!guestId) return;
     const guestRef = ref(db, `auction/guests/${guestId}`);
@@ -50,6 +52,7 @@ function BidderRoom() {
     return () => unsub();
   }, [guestId, navigate]);
 
+  // Pantau data lelang
   useEffect(() => {
     const priceRef = ref(db, "auction/currentPrice");
     const endRef = ref(db, "auction/ended");
@@ -80,6 +83,7 @@ function BidderRoom() {
     };
   }, []);
 
+  // Kirim CALL / FOLD
   const submitStatus = (newStatus) => {
     if (!guestId) return;
     const guestRef = ref(db, `auction/guests/${guestId}`);
@@ -136,7 +140,7 @@ function BidderRoom() {
         <div className="mb-4">
           <img
             src={itemImage || "https://via.placeholder.com/300x200.png?text=Barang+Lelang"}
-            alt="Barang"
+            alt="Barang Lelang"
             className="rounded w-full object-cover max-h-60"
           />
           <h2 className="text-xl font-semibold mt-2">{itemName}</h2>

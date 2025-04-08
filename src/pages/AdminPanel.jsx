@@ -1,16 +1,6 @@
 import { useEffect, useState } from "react";
-import { db, auth, storage } from "../firebase";
-import {
-  ref,
-  set,
-  onValue,
-  update,
-} from "firebase/database";
-import {
-  ref as storageRef,
-  uploadBytes,
-  getDownloadURL,
-} from "firebase/storage";
+import { db, auth } from "../firebase";
+import { ref, set, onValue, update } from "firebase/database";
 import { signOut, onAuthStateChanged } from "firebase/auth";
 import { useNavigate } from "react-router-dom";
 
@@ -118,28 +108,48 @@ function AdminPanel() {
     });
   };
 
+  const uploadToImgbb = async (file) => {
+    const formData = new FormData();
+    formData.append("image", file);
+
+    const res = await fetch("https://api.imgbb.com/1/upload?key=85f68eb79400a84a41ea4f6d60e6796c", {
+      method: "POST",
+      body: formData,
+    });
+
+    const data = await res.json();
+    if (data.success) {
+      return data.data.url;
+    } else {
+      throw new Error("Upload gambar gagal");
+    }
+  };
+
   const handleStartAuction = async () => {
     if (!imageFile || !itemName || !itemDesc || price <= 0) {
       alert("Lengkapi semua data terlebih dahulu.");
       return;
     }
 
-    const imgRef = storageRef(storage, `items/${Date.now()}-${imageFile.name}`);
-    await uploadBytes(imgRef, imageFile);
-    const downloadURL = await getDownloadURL(imgRef);
+    try {
+      const downloadURL = await uploadToImgbb(imageFile);
 
-    await set(ref(db, "auction/currentPrice"), price);
-    await set(ref(db, "auction/started"), true);
-    await set(ref(db, "auction/ended"), false);
-    await set(ref(db, "auction/item"), {
-      name: itemName,
-      description: itemDesc,
-      image: downloadURL,
-    });
+      await set(ref(db, "auction/currentPrice"), price);
+      await set(ref(db, "auction/started"), true);
+      await set(ref(db, "auction/ended"), false);
+      await set(ref(db, "auction/item"), {
+        name: itemName,
+        description: itemDesc,
+        image: downloadURL,
+      });
 
-    setImageURL(downloadURL);
-    setAuctionStarted(true);
-    alert("Lelang dimulai!");
+      setImageURL(downloadURL);
+      setAuctionStarted(true);
+      alert("Lelang dimulai!");
+    } catch (error) {
+      console.error("Gagal memulai lelang:", error);
+      alert("Gagal memulai lelang. Periksa koneksi atau file gambar.");
+    }
   };
 
   const countStatus = (status) => {
@@ -168,8 +178,8 @@ function AdminPanel() {
 
         <h1 className="text-2xl font-bold mb-4">Admin Panel</h1>
 
-        {/* === Bagian Barang dan Kontrol === */}
         <div className="grid md:grid-cols-2 gap-6">
+          {/* === Panel Barang dan Kontrol === */}
           <div>
             {imageURL ? (
               <img src={imageURL} alt="Barang" className="rounded mb-4" />
