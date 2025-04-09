@@ -13,13 +13,14 @@ function BidderRoom() {
   const [winner, setWinner] = useState(null);
 
   const [currentPrice, setCurrentPrice] = useState(0);
-  const [itemImage, setItemImage] = useState("");
+  const [itemImages, setItemImages] = useState([]);
   const [itemName, setItemName] = useState("Barang Lelang");
   const [itemDescription, setItemDescription] = useState("Deskripsi belum tersedia.");
   const [auctionEnded, setAuctionEnded] = useState(false);
 
   const [timerEnd, setTimerEnd] = useState(null);
   const [timeLeft, setTimeLeft] = useState(0);
+  const [currentImageIndex, setCurrentImageIndex] = useState(0);
 
   const navigate = useNavigate();
 
@@ -57,7 +58,6 @@ function BidderRoom() {
     const priceRef = ref(db, "auction/currentPrice");
     const itemRef = ref(db, "auction/item");
     const timerRef = ref(db, "auction/timerEnd");
-    const winnerRef = ref(db, "auction/winner");
 
     const unsubPrice = onValue(priceRef, (snap) => {
       const val = snap.val();
@@ -67,7 +67,7 @@ function BidderRoom() {
     const unsubItem = onValue(itemRef, (snap) => {
       const data = snap.val();
       if (data) {
-        setItemImage(data.image || "");
+        setItemImages(Array.isArray(data.images) ? data.images : []);
         setItemName(data.name || "Barang Lelang");
         setItemDescription(data.description || "Deskripsi belum tersedia.");
       }
@@ -78,24 +78,29 @@ function BidderRoom() {
       setTimerEnd(end);
     });
 
-    const unsubWinner = onValue(winnerRef, (snap) => {
-      const data = snap.val();
-      if (data) setWinner(data);
-    });
-
     return () => {
       unsubPrice();
       unsubItem();
       unsubTimer();
-      unsubWinner();
     };
   }, []);
 
   useEffect(() => {
     const endRef = ref(db, "auction/ended");
+    const winnerRef = ref(db, "auction/winner");
+
     const unsubEnd = onValue(endRef, (snap) => {
-      setAuctionEnded(!!snap.val());
+      const ended = !!snap.val();
+      setAuctionEnded(ended);
+
+      if (ended) {
+        onValue(winnerRef, (winnerSnap) => {
+          const winnerData = winnerSnap.val();
+          if (winnerData) setWinner(winnerData);
+        });
+      }
     });
+
     return () => unsubEnd();
   }, []);
 
@@ -152,6 +157,14 @@ function BidderRoom() {
 
   const hasFolded = status === "fold";
 
+  const nextImage = () => {
+    setCurrentImageIndex((prev) => (prev + 1) % itemImages.length);
+  };
+
+  const prevImage = () => {
+    setCurrentImageIndex((prev) => (prev - 1 + itemImages.length) % itemImages.length);
+  };
+
   if (isLoading) {
     return (
       <div className="flex justify-center items-center h-screen bg-gray-100">
@@ -180,17 +193,37 @@ function BidderRoom() {
           ID Kamu: <strong>{guestId}</strong>
         </p>
 
-        <div className="mb-4">
-          <img
-            src={itemImage}
-            alt="Barang Lelang"
-            className="rounded w-full object-cover max-h-60"
-            referrerPolicy="no-referrer"
-            loading="lazy"
-          />
-          <h2 className="text-xl font-semibold mt-2">{itemName}</h2>
-          <p>{itemDescription}</p>
-        </div>
+        {/* Carousel */}
+        {itemImages.length > 0 && (
+          <div className="relative mb-4">
+            <img
+              src={itemImages[currentImageIndex]}
+              alt={`Barang ${currentImageIndex + 1}`}
+              className="rounded w-full object-cover max-h-60"
+              referrerPolicy="no-referrer"
+              loading="lazy"
+            />
+            {itemImages.length > 1 && (
+              <>
+                <button
+                  onClick={prevImage}
+                  className="absolute left-2 top-1/2 -translate-y-1/2 bg-black bg-opacity-40 text-white p-1 rounded-full"
+                >
+                  ‹
+                </button>
+                <button
+                  onClick={nextImage}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 bg-black bg-opacity-40 text-white p-1 rounded-full"
+                >
+                  ›
+                </button>
+              </>
+            )}
+          </div>
+        )}
+
+        <h2 className="text-xl font-semibold mt-2">{itemName}</h2>
+        <p className="mb-4">{itemDescription}</p>
 
         <div className="bg-gray-100 p-4 rounded mb-4">
           <p className="text-lg font-medium">Harga Saat Ini:</p>
@@ -237,8 +270,8 @@ function BidderRoom() {
           </p>
         ) : (
           <p className="text-yellow-600 font-semibold text-center mb-4">
-            Kamu dinyatakan <strong>FOLD</strong> karena tidak melakukan call pada harga sebelumnya.
-            Kamu hanya bisa menonton lelang ini.
+            Kamu dinyatakan <strong>FOLD</strong> karena tidak melakukan call.
+            Kamu hanya bisa menonton.
           </p>
         )}
 
@@ -258,7 +291,7 @@ function BidderRoom() {
                 <p className="font-bold">Pemenang:</p>
                 <p>{winner.name}</p>
                 <p className="text-sm text-gray-600 mt-1">
-                  Harga Menang: Rp {winner.price.toLocaleString()}
+                  Harga Menang: Rp {winner.price?.toLocaleString() || "-"}
                 </p>
               </div>
             )}
