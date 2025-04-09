@@ -1,4 +1,3 @@
-// src/App.jsx
 import { BrowserRouter as Router, Routes, Route, Navigate } from "react-router-dom";
 import GuestLogin from "./pages/GuestLogin";
 import WaitingRoom from "./pages/WaitingRoom";
@@ -17,9 +16,8 @@ function App() {
         <Route path="/bidder-room" element={<BidderRoom />} />
         <Route path="/admin-login" element={<AdminLogin />} />
         
-        {/* Lindungi halaman admin */}
         <Route
-          path="/admin"
+          path="/adminpanel"
           element={
             <ProtectedAdminRoute>
               <AdminPanel />
