@@ -14,7 +14,7 @@ import { useNavigate } from "react-router-dom";
 function AdminPanel() {
   const [tab, setTab] = useState("setup");
   const [adminEmail, setAdminEmail] = useState("");
-  const [isAuthorized, setIsAuthorized] = useState(null); // null = loading, false = tidak izin
+  const [isAuthorized, setIsAuthorized] = useState(false); // null = loading, false = tidak izin
   const [imageFiles, setImageFiles] = useState([]);
   const [imageURLs, setImageURLs] = useState([]);
   const [itemName, setItemName] = useState("");
