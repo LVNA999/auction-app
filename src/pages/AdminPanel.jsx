@@ -31,8 +31,13 @@ function AdminPanel() {
   // Auth Check
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, (user) => {
-      if (user) setAdminEmail(user.email);
-      else navigate("/admin-login");
+      const allowedAdminEmail = "admin@langvi.na";
+      if (user && user.email === allowedAdminEmail) {
+        setAdminEmail(user.email);
+      } else {
+        alert("<Strong>AKSES DITOLAK</Strong>");
+        navigate("/admin-login");
+      }
     });
     return () => unsub();
   }, []);
