@@ -196,7 +196,7 @@ function BidderRoom() {
         {/* Carousel */}
         {itemImages.length > 0 && (
           <div className="mb-4">
-            <div className="relative aspect-[16/9] w-full overflow-hidden rounded shadow">
+            <div className="relative aspect-[4/3] w-full overflow-hidden rounded shadow">
               <img
                 src={itemImages[imageIndex]}
                 alt={`Gambar ${imageIndex + 1}`}
