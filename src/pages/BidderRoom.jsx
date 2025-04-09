@@ -20,7 +20,7 @@ function BidderRoom() {
 
   const [timerEnd, setTimerEnd] = useState(null);
   const [timeLeft, setTimeLeft] = useState(0);
-  const [currentImageIndex, setCurrentImageIndex] = useState(0);
+  const [imageIndex, setImageIndex] = useState(0);
 
   const navigate = useNavigate();
 
@@ -67,7 +67,7 @@ function BidderRoom() {
     const unsubItem = onValue(itemRef, (snap) => {
       const data = snap.val();
       if (data) {
-        setItemImages(Array.isArray(data.images) ? data.images : []);
+        setItemImages(data.images || (data.image ? [data.image] : []));
         setItemName(data.name || "Barang Lelang");
         setItemDescription(data.description || "Deskripsi belum tersedia.");
       }
@@ -155,15 +155,15 @@ function BidderRoom() {
     }
   };
 
-  const hasFolded = status === "fold";
-
   const nextImage = () => {
-    setCurrentImageIndex((prev) => (prev + 1) % itemImages.length);
+    setImageIndex((prev) => (prev + 1) % itemImages.length);
   };
 
   const prevImage = () => {
-    setCurrentImageIndex((prev) => (prev - 1 + itemImages.length) % itemImages.length);
+    setImageIndex((prev) => (prev - 1 + itemImages.length) % itemImages.length);
   };
+
+  const hasFolded = status === "fold";
 
   if (isLoading) {
     return (
@@ -195,37 +195,41 @@ function BidderRoom() {
 
         {/* Carousel */}
         {itemImages.length > 0 && (
-          <div className="relative mb-4">
-            <img
-              src={itemImages[currentImageIndex]}
-              alt={`Barang ${currentImageIndex + 1}`}
-              className="rounded w-full object-cover max-h-60"
-              referrerPolicy="no-referrer"
-              loading="lazy"
-            />
-            {itemImages.length > 1 && (
-              <>
-                <button
-                  onClick={prevImage}
-                  className="absolute left-2 top-1/2 -translate-y-1/2 bg-black bg-opacity-40 text-white p-1 rounded-full"
-                >
-                  ‹
-                </button>
-                <button
-                  onClick={nextImage}
-                  className="absolute right-2 top-1/2 -translate-y-1/2 bg-black bg-opacity-40 text-white p-1 rounded-full"
-                >
-                  ›
-                </button>
-              </>
-            )}
+          <div className="mb-4">
+            <div className="relative aspect-[16/9] w-full overflow-hidden rounded shadow">
+              <img
+                src={itemImages[imageIndex]}
+                alt={`Gambar ${imageIndex + 1}`}
+                className="w-full h-full object-cover"
+                loading="lazy"
+              />
+              {itemImages.length > 1 && (
+                <>
+                  <button
+                    onClick={prevImage}
+                    className="absolute left-0 top-1/2 transform -translate-y-1/2 px-3 py-1 bg-white bg-opacity-80 rounded-r hover:bg-opacity-100"
+                  >
+                    ‹
+                  </button>
+                  <button
+                    onClick={nextImage}
+                    className="absolute right-0 top-1/2 transform -translate-y-1/2 px-3 py-1 bg-white bg-opacity-80 rounded-l hover:bg-opacity-100"
+                  >
+                    ›
+                  </button>
+                </>
+              )}
+            </div>
+            <p className="text-center text-sm text-gray-500 mt-1">
+              Gambar {imageIndex + 1} dari {itemImages.length}
+            </p>
           </div>
         )}
 
         <h2 className="text-xl font-semibold mt-2">{itemName}</h2>
-        <p className="mb-4">{itemDescription}</p>
+        <p>{itemDescription}</p>
 
-        <div className="bg-gray-100 p-4 rounded mb-4">
+        <div className="bg-gray-100 p-4 rounded mb-4 mt-4">
           <p className="text-lg font-medium">Harga Saat Ini:</p>
           <p className="text-2xl font-bold text-blue-600">
             Rp {currentPrice.toLocaleString()}
@@ -270,8 +274,8 @@ function BidderRoom() {
           </p>
         ) : (
           <p className="text-yellow-600 font-semibold text-center mb-4">
-            Kamu dinyatakan <strong>FOLD</strong> karena tidak melakukan call.
-            Kamu hanya bisa menonton.
+            Kamu dinyatakan <strong>FOLD</strong> karena tidak melakukan call pada harga sebelumnya.
+            Kamu hanya bisa menonton lelang ini.
           </p>
         )}
 
