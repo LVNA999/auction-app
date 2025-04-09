@@ -7,7 +7,6 @@ import { useNavigate } from "react-router-dom";
 function AdminPanel() {
   const [price, setPrice] = useState(0);
   const [increment, setIncrement] = useState(10000);
-  const [binPrice, setBinPrice] = useState(500000);
   const [auctionEnded, setAuctionEnded] = useState(false);
   const [bidders, setBidders] = useState([]);
   const [adminEmail, setAdminEmail] = useState("");
@@ -67,10 +66,15 @@ function AdminPanel() {
     setPrice(newPrice);
     set(ref(db, "auction/currentPrice"), newPrice);
 
-    if (newPrice >= binPrice) {
-      setAuctionEnded(true);
-      set(ref(db, "auction/ended"), true);
-    }
+    // Tandai semua bidder yang belum CALL sebagai FOLD
+    bidders.forEach((b) => {
+      if (b.verified && b.active && (b.status !== "call")) {
+        update(ref(db, `auction/guests/${b.id}`), {
+          status: "fold",
+          timestamp: Date.now(),
+        });
+      }
+    });
   };
 
   const endAuction = () => {
@@ -94,11 +98,10 @@ function AdminPanel() {
     });
   };
 
-  // ✅ Upload gambar ke Cloudinary
   const uploadToCloudinary = async (file) => {
     const formData = new FormData();
     formData.append("file", file);
-    formData.append("upload_preset", "upload_preset"); // Ganti sesuai preset yang kamu buat
+    formData.append("upload_preset", "upload_preset"); // Sesuaikan dengan preset Cloudinary kamu
 
     const res = await fetch("https://api.cloudinary.com/v1_1/dex2qqidi/image/upload", {
       method: "POST",
@@ -118,6 +121,16 @@ function AdminPanel() {
 
     try {
       const imageUrl = await uploadToCloudinary(imageFile);
+
+      // Reset status semua bidder saat lelang dimulai
+      for (const bidder of bidders) {
+        if (bidder.verified && bidder.active) {
+          await update(ref(db, `auction/guests/${bidder.id}`), {
+            status: "waiting",
+            timestamp: null,
+          });
+        }
+      }
 
       await set(ref(db, "auction/currentPrice"), price);
       await set(ref(db, "auction/started"), true);
@@ -163,7 +176,7 @@ function AdminPanel() {
         <h1 className="text-2xl font-bold mb-4">Admin Panel</h1>
 
         <div className="grid md:grid-cols-2 gap-6">
-          {/* === Upload dan Kontrol Lelang === */}
+          {/* Panel Kontrol Lelang */}
           <div>
             {imageURL ? (
               <img src={imageURL} alt="Barang" className="rounded mb-4" />
@@ -217,9 +230,6 @@ function AdminPanel() {
               <p className="text-2xl font-bold text-blue-600">
                 Rp {price.toLocaleString()}
               </p>
-              <p className="text-sm text-gray-500">
-                BIN: Rp {binPrice.toLocaleString()}
-              </p>
             </div>
 
             <label className="block mb-1 font-medium">Kelipatan Harga</label>
@@ -261,7 +271,7 @@ function AdminPanel() {
             )}
           </div>
 
-          {/* === Panel Verifikasi Bidder === */}
+          {/* Panel Bidder */}
           <div>
             <h2 className="text-xl font-semibold mb-4">Manajemen Bidder</h2>
 
@@ -312,8 +322,8 @@ function AdminPanel() {
 
             <div className="mt-6">
               <p className="font-medium">Status Bidder:</p>
-              <p>Jumlah Call: {countStatus("call")}</p>
-              <p>Jumlah Fold: {countStatus("fold")}</p>
+              <p>Jumlah CALL: {countStatus("call")}</p>
+              <p>Jumlah FOLD: {countStatus("fold")}</p>
             </div>
           </div>
         </div>

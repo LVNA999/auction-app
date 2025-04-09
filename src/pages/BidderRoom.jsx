@@ -6,8 +6,6 @@ import { useNavigate } from "react-router-dom";
 function BidderRoom() {
   const [currentPrice, setCurrentPrice] = useState(0);
   const [status, setStatus] = useState(null);
-  const [calls, setCalls] = useState(0);
-  const [folds, setFolds] = useState(0);
   const [auctionEnded, setAuctionEnded] = useState(false);
   const [guestId, setGuestId] = useState("");
   const [isVerified, setIsVerified] = useState(false);
@@ -91,13 +89,11 @@ function BidderRoom() {
 
   const handleCall = () => {
     setStatus("CALL");
-    setCalls((prev) => prev + 1);
     submitStatus("call");
   };
 
   const handleFold = () => {
     setStatus("FOLD");
-    setFolds((prev) => prev + 1);
     submitStatus("fold");
   };
 
@@ -189,12 +185,6 @@ function BidderRoom() {
             Lelang telah berakhir
           </p>
         )}
-
-        <div className="bg-white p-4 rounded border">
-          <p className="text-sm text-gray-700">Statistik Lokal (Dummy):</p>
-          <p>Jumlah Call: {calls}</p>
-          <p>Jumlah Fold: {folds}</p>
-        </div>
       </div>
     </div>
   );
