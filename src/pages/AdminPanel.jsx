@@ -16,6 +16,7 @@ function AdminPanel() {
   const [itemName, setItemName] = useState("");
   const [itemDesc, setItemDesc] = useState("");
   const [auctionStarted, setAuctionStarted] = useState(false);
+  const [canStartTimer, setCanStartTimer] = useState(false);
 
   const navigate = useNavigate();
 
@@ -61,27 +62,24 @@ function AdminPanel() {
     };
   }, []);
 
-  const increasePrice = () => {
+  const increasePrice = async () => {
     const newPrice = price + increment;
     setPrice(newPrice);
-    set(ref(db, "auction/currentPrice"), newPrice);
-
-    // Tandai semua bidder yang belum CALL sebagai FOLD
-    bidders.forEach((b) => {
-      if (b.verified && b.active && (b.status !== "call")) {
-        update(ref(db, `auction/guests/${b.id}`), {
-          status: "fold",
-          timestamp: Date.now(),
-        });
-      }
-    });
+    await set(ref(db, "auction/currentPrice"), newPrice);
+    setCanStartTimer(true);
   };
 
-  const endAuction = () => {
+  const startTimer = async () => {
+    const endTime = Date.now() + 30000; // 30 detik
+    await set(ref(db, "auction/timerEnd"), endTime);
+    setCanStartTimer(false);
+  };
+
+  const endAuction = async () => {
+    await set(ref(db, "auction/ended"), true);
+    await set(ref(db, "auction/started"), false);
     setAuctionEnded(true);
     setAuctionStarted(false);
-    set(ref(db, "auction/ended"), true);
-    set(ref(db, "auction/started"), false);
   };
 
   const verifyBidder = (id) => {
@@ -98,10 +96,18 @@ function AdminPanel() {
     });
   };
 
+  const resetAllStatuses = async () => {
+    const updates = {};
+    bidders.forEach((b) => {
+      updates[`auction/guests/${b.id}/status`] = "waiting";
+    });
+    await update(ref(db), updates);
+  };
+
   const uploadToCloudinary = async (file) => {
     const formData = new FormData();
     formData.append("file", file);
-    formData.append("upload_preset", "upload_preset"); // Sesuaikan dengan preset Cloudinary kamu
+    formData.append("upload_preset", "upload_preset");
 
     const res = await fetch("https://api.cloudinary.com/v1_1/dex2qqidi/image/upload", {
       method: "POST",
@@ -114,24 +120,13 @@ function AdminPanel() {
   };
 
   const handleStartAuction = async () => {
-    if (!imageFile || !itemName || !itemDesc || price <= 0) {
+    if (!imageFile || !itemName || !itemDesc || price <= 0 || increment <= 0) {
       alert("Lengkapi semua data terlebih dahulu.");
       return;
     }
 
     try {
       const imageUrl = await uploadToCloudinary(imageFile);
-
-      // Reset status semua bidder saat lelang dimulai
-      for (const bidder of bidders) {
-        if (bidder.verified && bidder.active) {
-          await update(ref(db, `auction/guests/${bidder.id}`), {
-            status: "waiting",
-            timestamp: null,
-          });
-        }
-      }
-
       await set(ref(db, "auction/currentPrice"), price);
       await set(ref(db, "auction/started"), true);
       await set(ref(db, "auction/ended"), false);
@@ -140,9 +135,11 @@ function AdminPanel() {
         description: itemDesc,
         image: imageUrl,
       });
+      await resetAllStatuses();
 
       setImageURL(imageUrl);
       setAuctionStarted(true);
+      setCanStartTimer(true);
       alert("Lelang dimulai!");
     } catch (err) {
       console.error(err);
@@ -150,8 +147,7 @@ function AdminPanel() {
     }
   };
 
-  const countStatus = (status) =>
-    bidders.filter((b) => b.status === status).length;
+  const countStatus = (status) => bidders.filter((b) => b.status === status).length;
 
   const handleLogout = async () => {
     await signOut(auth);
@@ -176,7 +172,7 @@ function AdminPanel() {
         <h1 className="text-2xl font-bold mb-4">Admin Panel</h1>
 
         <div className="grid md:grid-cols-2 gap-6">
-          {/* Panel Kontrol Lelang */}
+          {/* === Panel Barang dan Kontrol === */}
           <div>
             {imageURL ? (
               <img src={imageURL} alt="Barang" className="rounded mb-4" />
@@ -214,6 +210,15 @@ function AdminPanel() {
                   placeholder="Harga Awal"
                   value={price}
                   onChange={(e) => setPrice(Number(e.target.value))}
+                  className="w-full border p-2 mb-2 rounded"
+                />
+                <input
+                  type="number"
+                  min={1000}
+                  step={1000}
+                  placeholder="Kelipatan Harga"
+                  value={increment}
+                  onChange={(e) => setIncrement(Number(e.target.value))}
                   className="w-full border p-2 mb-4 rounded"
                 />
                 <button
@@ -232,49 +237,43 @@ function AdminPanel() {
               </p>
             </div>
 
-            <label className="block mb-1 font-medium">Kelipatan Harga</label>
-            <input
-              type="number"
-              min={1000}
-              step={1000}
-              value={increment}
-              onChange={(e) => setIncrement(Number(e.target.value))}
-              className="w-full border p-2 mb-4 rounded"
-              disabled={!auctionStarted || auctionEnded}
-            />
-
-            <div className="flex space-x-4 mb-4">
-              <button
-                onClick={increasePrice}
-                disabled={!auctionStarted || auctionEnded}
-                className={`px-6 py-2 rounded ${
-                  auctionEnded || !auctionStarted
-                    ? "bg-gray-400"
-                    : "bg-blue-500 hover:bg-blue-600 text-white"
-                }`}
-              >
-                Naikkan Harga
-              </button>
-              <button
-                onClick={endAuction}
-                disabled={!auctionStarted || auctionEnded}
-                className="px-6 py-2 rounded bg-red-500 text-white hover:bg-red-600"
-              >
-                Akhiri Lelang
-              </button>
-            </div>
-
-            {auctionEnded && (
-              <p className="text-center text-red-500 font-bold text-lg mt-4">
-                Lelang Telah Berakhir
-              </p>
+            {auctionStarted && (
+              <>
+                <div className="flex space-x-4 mb-4">
+                  <button
+                    onClick={increasePrice}
+                    disabled={auctionEnded}
+                    className="px-6 py-2 rounded bg-blue-500 hover:bg-blue-600 text-white"
+                  >
+                    Naikkan Harga
+                  </button>
+                  <button
+                    onClick={startTimer}
+                    disabled={!canStartTimer || auctionEnded}
+                    className="px-6 py-2 rounded bg-indigo-500 hover:bg-indigo-600 text-white"
+                  >
+                    Mulai Timer (30s)
+                  </button>
+                  <button
+                    onClick={endAuction}
+                    disabled={auctionEnded}
+                    className="px-6 py-2 rounded bg-red-500 hover:bg-red-600 text-white"
+                  >
+                    Akhiri Lelang
+                  </button>
+                </div>
+                {auctionEnded && (
+                  <p className="text-center text-red-500 font-bold text-lg mt-4">
+                    Lelang Telah Berakhir
+                  </p>
+                )}
+              </>
             )}
           </div>
 
-          {/* Panel Bidder */}
+          {/* === Panel Verifikasi dan Manajemen === */}
           <div>
             <h2 className="text-xl font-semibold mb-4">Manajemen Bidder</h2>
-
             {bidders.length === 0 ? (
               <p className="text-sm text-gray-600">Belum ada pendaftar.</p>
             ) : (
@@ -322,8 +321,8 @@ function AdminPanel() {
 
             <div className="mt-6">
               <p className="font-medium">Status Bidder:</p>
-              <p>Jumlah CALL: {countStatus("call")}</p>
-              <p>Jumlah FOLD: {countStatus("fold")}</p>
+              <p>Jumlah Call: {countStatus("call")}</p>
+              <p>Jumlah Fold: {countStatus("fold")}</p>
             </div>
           </div>
         </div>

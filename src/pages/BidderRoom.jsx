@@ -6,7 +6,6 @@ import { useNavigate } from "react-router-dom";
 function BidderRoom() {
   const [currentPrice, setCurrentPrice] = useState(0);
   const [status, setStatus] = useState(null);
-  const [auctionEnded, setAuctionEnded] = useState(false);
   const [guestId, setGuestId] = useState("");
   const [isVerified, setIsVerified] = useState(false);
   const [isActive, setIsActive] = useState(false);
@@ -16,8 +15,12 @@ function BidderRoom() {
   const [itemName, setItemName] = useState("Barang Lelang");
   const [itemDescription, setItemDescription] = useState("Deskripsi belum tersedia.");
 
+  const [timerEnd, setTimerEnd] = useState(null);
+  const [timeLeft, setTimeLeft] = useState(0);
+
   const navigate = useNavigate();
 
+  // Ambil ID dari localStorage
   useEffect(() => {
     const storedId = localStorage.getItem("bidderId");
     if (!storedId) {
@@ -27,6 +30,7 @@ function BidderRoom() {
     setGuestId(storedId);
   }, [navigate]);
 
+  // Pantau status guest
   useEffect(() => {
     if (!guestId) return;
     const guestRef = ref(db, `auction/guests/${guestId}`);
@@ -48,18 +52,16 @@ function BidderRoom() {
     return () => unsub();
   }, [guestId, navigate]);
 
+  // Pantau data lelang
   useEffect(() => {
     const priceRef = ref(db, "auction/currentPrice");
     const endRef = ref(db, "auction/ended");
     const itemRef = ref(db, "auction/item");
+    const timerRef = ref(db, "auction/timerEnd");
 
     const unsubPrice = onValue(priceRef, (snapshot) => {
       const val = snapshot.val();
       if (val !== null) setCurrentPrice(val);
-    });
-
-    const unsubEnd = onValue(endRef, (snapshot) => {
-      setAuctionEnded(!!snapshot.val());
     });
 
     const unsubItem = onValue(itemRef, (snapshot) => {
@@ -71,12 +73,32 @@ function BidderRoom() {
       }
     });
 
+    const unsubTimer = onValue(timerRef, (snap) => {
+      const end = snap.val();
+      setTimerEnd(end);
+    });
+
     return () => {
       unsubPrice();
-      unsubEnd();
       unsubItem();
+      unsubTimer();
     };
   }, []);
+
+  // Update countdown timer setiap detik
+  useEffect(() => {
+    if (!timerEnd) return;
+
+    const interval = setInterval(() => {
+      const now = Date.now();
+      const diff = Math.max(0, Math.floor((timerEnd - now) / 1000));
+      setTimeLeft(diff);
+
+      if (diff <= 0) clearInterval(interval);
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [timerEnd]);
 
   const submitStatus = (newStatus) => {
     if (!guestId) return;
@@ -148,41 +170,41 @@ function BidderRoom() {
           </p>
         </div>
 
-        {!auctionEnded ? (
-          <>
-            {hasFolded ? (
-              <p className="text-yellow-600 font-semibold text-center mb-4">
-                Kamu sudah fold. Kamu hanya bisa menonton lelang ini.
-              </p>
-            ) : (
-              <div className="flex space-x-4 mb-4">
-                <button
-                  className="bg-green-500 text-white px-6 py-2 rounded hover:bg-green-600"
-                  onClick={handleCall}
-                >
-                  CALL
-                </button>
-                <button
-                  className="bg-red-500 text-white px-6 py-2 rounded hover:bg-red-600"
-                  onClick={handleFold}
-                >
-                  FOLD
-                </button>
-              </div>
-            )}
+        {timeLeft > 0 && (
+          <div className="mb-4 text-center">
+            <p className="text-sm text-gray-600">Waktu tersisa untuk CALL/FOLD:</p>
+            <p className="text-2xl font-bold text-red-600">{timeLeft} detik</p>
+          </div>
+        )}
 
-            {status && (
-              <p className="text-center mb-4">
-                Kamu memilih:{" "}
-                <span className="font-semibold text-indigo-600">
-                  {status.toUpperCase()}
-                </span>
-              </p>
-            )}
-          </>
+        {!hasFolded ? (
+          <div className="flex space-x-4 mb-4">
+            <button
+              className="bg-green-500 text-white px-6 py-2 rounded hover:bg-green-600"
+              onClick={handleCall}
+              disabled={timeLeft <= 0}
+            >
+              CALL
+            </button>
+            <button
+              className="bg-red-500 text-white px-6 py-2 rounded hover:bg-red-600"
+              onClick={handleFold}
+              disabled={timeLeft <= 0}
+            >
+              FOLD
+            </button>
+          </div>
         ) : (
-          <p className="text-center text-xl font-bold text-red-500 mb-4">
-            Lelang telah berakhir
+          <p className="text-yellow-600 font-semibold text-center mb-4">
+            Kamu dinyatakan <strong>FOLD</strong> karena tidak melakukan call pada harga sebelumnya.
+            Kamu hanya bisa menonton lelang ini.
+          </p>
+        )}
+
+        {status && (
+          <p className="text-center mb-4">
+            Kamu memilih:{" "}
+            <span className="font-semibold text-indigo-600">{status.toUpperCase()}</span>
           </p>
         )}
       </div>
