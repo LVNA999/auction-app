@@ -9,7 +9,8 @@ function BidderRoom() {
   const [isVerified, setIsVerified] = useState(false);
   const [isActive, setIsActive] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
-  const [foldReason, setFoldReason] = useState(null); // "manual" | "auto"
+  const [foldReason, setFoldReason] = useState(null);
+  const [winner, setWinner] = useState(null);
 
   const [currentPrice, setCurrentPrice] = useState(0);
   const [itemImage, setItemImage] = useState("");
@@ -41,7 +42,7 @@ function BidderRoom() {
         setIsVerified(data.verified ?? false);
         setIsActive(data.active ?? false);
         if (data.status === "fold" && data.foldReason) {
-          setFoldReason(data.foldReason); // from database
+          setFoldReason(data.foldReason);
         }
       } else {
         localStorage.removeItem("bidderId");
@@ -57,6 +58,7 @@ function BidderRoom() {
     const itemRef = ref(db, "auction/item");
     const endRef = ref(db, "auction/ended");
     const timerRef = ref(db, "auction/timerEnd");
+    const winnerRef = ref(db, "auction/winner");
 
     const unsubPrice = onValue(priceRef, (snap) => {
       const val = snap.val();
@@ -81,11 +83,17 @@ function BidderRoom() {
       setTimerEnd(end);
     });
 
+    const unsubWinner = onValue(winnerRef, (snap) => {
+      const data = snap.val();
+      if (data) setWinner(data);
+    });
+
     return () => {
       unsubPrice();
       unsubItem();
       unsubEnd();
       unsubTimer();
+      unsubWinner();
     };
   }, []);
 
@@ -100,7 +108,6 @@ function BidderRoom() {
       if (remaining <= 0) {
         clearInterval(interval);
 
-        // Auto-fold jika belum call atau fold
         if (!status || status === "waiting") {
           const guestRef = ref(db, `auction/guests/${guestId}`);
           update(guestRef, {
@@ -241,9 +248,18 @@ function BidderRoom() {
         )}
 
         {auctionEnded && (
-          <p className="text-center text-lg text-red-500 font-semibold mt-4">
-            Lelang telah berakhir.
-          </p>
+          <>
+            <p className="text-center text-lg text-red-500 font-semibold mt-4">
+              Lelang telah berakhir.
+            </p>
+            {winner && (
+              <div className="mt-4 bg-green-100 border border-green-300 text-green-700 p-3 rounded text-center">
+                <p className="font-bold">Pemenang:</p>
+                <p>{winner.name}</p>
+                <p className="text-sm text-gray-600 mt-1">Harga Menang: Rp {winner.price.toLocaleString()}</p>
+              </div>
+            )}
+          </>
         )}
       </div>
     </div>
