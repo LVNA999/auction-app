@@ -17,13 +17,15 @@ function AdminLogin() {
     try {
       const userCredential = await signInWithEmailAndPassword(auth, email, password);
       const user = userCredential.user;
+      console.log("User UID:", user.uid); //apus ini
 
       // 🔐 Cek otorisasi di Firebase Realtime Database
       const adminRef = ref(db, `admins/${user.uid}`);
       const snap = await get(adminRef);
+      console.log("Admin check exists:", snap.exists()); //apus ini
 
       if (snap.exists()) {
-        navigate("/admin");
+        navigate("/adminpanel");
       } else {
         setError("Akun ini tidak memiliki akses admin.");
       }
