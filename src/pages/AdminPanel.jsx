@@ -1,4 +1,3 @@
-// Tambahan import
 import { useEffect, useState } from "react";
 import { db, auth } from "../firebase";
 import {
@@ -29,7 +28,6 @@ function AdminPanel() {
 
   const navigate = useNavigate();
 
-  // Auth
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, (user) => {
       if (user) setAdminEmail(user.email);
@@ -38,7 +36,6 @@ function AdminPanel() {
     return () => unsub();
   }, []);
 
-  // Load data
   useEffect(() => {
     const guestsRef = ref(db, "auction/guests");
     onValue(guestsRef, (snapshot) => {
@@ -58,8 +55,6 @@ function AdminPanel() {
         setImageURL(data.image || "");
       }
     });
-
-    // Load winner jika sudah diset
     onValue(ref(db, "auction/winner"), (snap) => {
       setWinner(snap.val());
     });
@@ -125,18 +120,22 @@ function AdminPanel() {
   };
 
   const endAuction = async () => {
+    const confirm = window.confirm("Apakah kamu yakin ingin mengakhiri lelang?");
+    if (!confirm) return;
+
     await set(ref(db, "auction/ended"), true);
     await set(ref(db, "auction/started"), false);
 
-    // Cari pemenang
-    const lastCaller = bidders.findLast((b) => b.status === "call");
+    const lastCaller = [...bidders].reverse().find((b) => b.status === "call");
     if (lastCaller) {
-      await set(ref(db, "auction/winner"), {
+      const winnerData = {
         name: lastCaller.name,
         email: lastCaller.email || "-",
         id: lastCaller.id,
-      });
-      setWinner(lastCaller);
+        price,
+      };
+      await set(ref(db, "auction/winner"), winnerData);
+      setWinner(winnerData);
     } else {
       await set(ref(db, "auction/winner"), null);
       setWinner(null);
@@ -231,6 +230,7 @@ function AdminPanel() {
                 <h3 className="text-lg font-bold text-green-700">🎉 Pemenang:</h3>
                 <p>Nama: <strong>{winner.name}</strong></p>
                 <p>Email: <strong>{winner.email}</strong></p>
+                <p>Harga Menang: <strong>Rp {winner.price.toLocaleString()}</strong></p>
               </div>
             )}
           </div>

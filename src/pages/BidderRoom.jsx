@@ -57,6 +57,7 @@ function BidderRoom() {
     const priceRef = ref(db, "auction/currentPrice");
     const itemRef = ref(db, "auction/item");
     const timerRef = ref(db, "auction/timerEnd");
+    const winnerRef = ref(db, "auction/winner");
 
     const unsubPrice = onValue(priceRef, (snap) => {
       const val = snap.val();
@@ -77,29 +78,24 @@ function BidderRoom() {
       setTimerEnd(end);
     });
 
+    const unsubWinner = onValue(winnerRef, (snap) => {
+      const data = snap.val();
+      if (data) setWinner(data);
+    });
+
     return () => {
       unsubPrice();
       unsubItem();
       unsubTimer();
+      unsubWinner();
     };
   }, []);
 
   useEffect(() => {
     const endRef = ref(db, "auction/ended");
-    const winnerRef = ref(db, "auction/winner");
-
     const unsubEnd = onValue(endRef, (snap) => {
-      const ended = !!snap.val();
-      setAuctionEnded(ended);
-
-      if (ended) {
-        onValue(winnerRef, (winnerSnap) => {
-          const winnerData = winnerSnap.val();
-          if (winnerData) setWinner(winnerData);
-        });
-      }
+      setAuctionEnded(!!snap.val());
     });
-
     return () => unsubEnd();
   }, []);
 
