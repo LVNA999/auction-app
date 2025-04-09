@@ -14,6 +14,7 @@ import { useNavigate } from "react-router-dom";
 function AdminPanel() {
   const [tab, setTab] = useState("setup");
   const [adminEmail, setAdminEmail] = useState("");
+  const [isAuthorized, setIsAuthorized] = useState(null); // null = loading, false = tidak izin
   const [imageFiles, setImageFiles] = useState([]);
   const [imageURLs, setImageURLs] = useState([]);
   const [itemName, setItemName] = useState("");
@@ -28,25 +29,36 @@ function AdminPanel() {
 
   const navigate = useNavigate();
 
-  // Auth Check
+  // Cek autentikasi & otorisasi
   useEffect(() => {
-    const unsub = onAuthStateChanged(auth, (user) => {
-      const allowedAdminEmail = "admin@langvi.na";
-      if (user && user.email === allowedAdminEmail) {
+    const unsub = onAuthStateChanged(auth, async (user) => {
+      if (user) {
         setAdminEmail(user.email);
+
+        // Verifikasi email admin di database
+        const adminRef = ref(db, `admins/${user.uid}`);
+        const snap = await get(adminRef);
+        if (snap.exists()) {
+          setIsAuthorized(true);
+        } else {
+          setIsAuthorized(false);
+          alert("Akun ini tidak memiliki akses admin.");
+          await signOut(auth);
+          navigate("/admin-login");
+        }
       } else {
-        alert("<Strong>AKSES DITOLAK</Strong>");
         navigate("/admin-login");
       }
     });
+
     return () => unsub();
   }, []);
 
-  // Load data dari Firebase
+  // Load data
   useEffect(() => {
     const guestsRef = ref(db, "auction/guests");
-    onValue(guestsRef, (snap) => {
-      const data = snap.val() || {};
+    onValue(guestsRef, (snapshot) => {
+      const data = snapshot.val() || {};
       const parsed = Object.entries(data).map(([id, value]) => ({ id, ...value }));
       setBidders(parsed);
     });
@@ -54,12 +66,13 @@ function AdminPanel() {
     onValue(ref(db, "auction/currentPrice"), (snap) => setPrice(snap.val() || 0));
     onValue(ref(db, "auction/started"), (snap) => setAuctionStarted(snap.val() || false));
     onValue(ref(db, "auction/ended"), (snap) => setAuctionEnded(snap.val() || false));
-
     onValue(ref(db, "auction/item"), (snap) => {
       const data = snap.val();
-      if (data?.images) setImageURLs(data.images);
-      if (data?.name) setItemName(data.name);
-      if (data?.description) setItemDesc(data.description);
+      if (data) {
+        setItemName(data.name || "");
+        setItemDesc(data.description || "");
+        setImageURLs(data.images || []);
+      }
     });
 
     onValue(ref(db, "auction/winner"), (snap) => {
@@ -67,10 +80,11 @@ function AdminPanel() {
     });
   }, []);
 
+  // Upload ke Cloudinary
   const uploadToCloudinary = async (file) => {
     const formData = new FormData();
     formData.append("file", file);
-    formData.append("upload_preset", "upload_preset"); // Ganti dengan preset kamu
+    formData.append("upload_preset", "upload_preset");
 
     const res = await fetch("https://api.cloudinary.com/v1_1/dex2qqidi/image/upload", {
       method: "POST",
@@ -79,7 +93,7 @@ function AdminPanel() {
 
     const data = await res.json();
     if (data.secure_url) return data.secure_url;
-    else throw new Error("Upload gagal");
+    else throw new Error("Gagal upload gambar.");
   };
 
   const handleStartAuction = async () => {
@@ -88,39 +102,37 @@ function AdminPanel() {
       return;
     }
 
-    try {
-      const urls = await Promise.all(imageFiles.map(uploadToCloudinary));
-      setImageURLs(urls);
+    const uploadedURLs = [];
+    for (let file of imageFiles) {
+      const url = await uploadToCloudinary(file);
+      uploadedURLs.push(url);
+    }
 
-      await set(ref(db, "auction"), {
-        currentPrice: price,
-        started: true,
-        ended: false,
-        item: {
-          name: itemName,
-          description: itemDesc,
-          images: urls,
-        },
-      });
+    await set(ref(db, "auction"), {
+      currentPrice: price,
+      started: true,
+      ended: false,
+      item: {
+        name: itemName,
+        description: itemDesc,
+        images: uploadedURLs,
+      },
+    });
 
-      const snapshot = await get(child(ref(db), "auction/guests"));
-      if (snapshot.exists()) {
-        const data = snapshot.val();
-        for (let id in data) {
-          if (data[id].verified && data[id].active) {
-            update(ref(db, `auction/guests/${id}`), {
-              status: "waiting",
-            });
-          }
+    const snapshot = await get(child(ref(db), "auction/guests"));
+    if (snapshot.exists()) {
+      const data = snapshot.val();
+      for (let id in data) {
+        if (data[id].verified && data[id].active) {
+          update(ref(db, `auction/guests/${id}`), {
+            status: "waiting",
+          });
         }
       }
-
-      setCanStartTimer(true);
-      alert("Lelang dimulai!");
-    } catch (err) {
-      console.error(err);
-      alert("Gagal upload gambar. Coba lagi.");
     }
+
+    setCanStartTimer(true);
+    alert("Lelang dimulai!");
   };
 
   const increasePrice = () => {
@@ -137,8 +149,8 @@ function AdminPanel() {
   };
 
   const endAuction = async () => {
-    const confirm = window.confirm("Yakin ingin mengakhiri lelang?");
-    if (!confirm) return;
+    const confirmEnd = window.confirm("Apakah kamu yakin ingin mengakhiri lelang?");
+    if (!confirmEnd) return;
 
     await set(ref(db, "auction/ended"), true);
     await set(ref(db, "auction/started"), false);
@@ -177,15 +189,30 @@ function AdminPanel() {
     navigate("/admin-login");
   };
 
+  if (isAuthorized === null) {
+    return (
+      <div className="flex justify-center items-center h-screen">
+        <p>Memuat halaman admin...</p>
+      </div>
+    );
+  }
+
+  if (!isAuthorized) {
+    return (
+      <div className="flex justify-center items-center h-screen">
+        <p className="text-red-500">Akses ditolak.</p>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-gray-100 p-6">
       <div className="max-w-6xl mx-auto bg-white p-6 rounded shadow">
-        <div className="flex justify-between items-center mb-4">
+        <div className="flex justify-between mb-4">
           <p>Login sebagai: <strong>{adminEmail}</strong></p>
           <button onClick={logout} className="bg-red-500 text-white px-4 py-1 rounded">Logout</button>
         </div>
 
-        {/* Tabs */}
         <div className="flex gap-4 mb-6">
           <button onClick={() => setTab("setup")} disabled={auctionStarted}
             className={`px-4 py-2 rounded ${tab === "setup" ? "bg-blue-500 text-white" : "bg-gray-200"}`}>
@@ -201,47 +228,38 @@ function AdminPanel() {
           </button>
         </div>
 
-        {/* Tab: Setup Lelang */}
         {tab === "setup" && (
           <div>
             {imageURLs.length > 0 && (
-              <div className="grid grid-cols-2 gap-4 mb-4">
-                {imageURLs.map((url, i) => (
-                  <img key={i} src={url} alt={`Gambar-${i}`} className="rounded max-h-40 object-cover" />
+              <div className="flex gap-2 mb-4 overflow-x-auto">
+                {imageURLs.map((url, index) => (
+                  <img key={index} src={url} alt={`Item ${index + 1}`} className="h-40 rounded" />
                 ))}
               </div>
             )}
-
-            <input type="file" accept="image/*" multiple onChange={(e) => setImageFiles([...e.target.files])} className="mb-2" />
-            <input type="text" placeholder="Nama Barang" value={itemName}
+            <input type="file" multiple accept="image/*" onChange={(e) => setImageFiles([...e.target.files])} className="mb-2" />
+            <input type="text" value={itemName} placeholder="Nama Barang"
               onChange={(e) => setItemName(e.target.value)} className="w-full border p-2 mb-2 rounded" />
-            <textarea placeholder="Deskripsi" value={itemDesc}
+            <textarea value={itemDesc} placeholder="Deskripsi"
               onChange={(e) => setItemDesc(e.target.value)} className="w-full border p-2 mb-2 rounded" />
-            <input type="number" placeholder="Harga Awal" value={price}
+            <input type="number" value={price} placeholder="Harga Awal"
               onChange={(e) => setPrice(Number(e.target.value))} className="w-full border p-2 mb-2 rounded" />
-            <input type="number" placeholder="Kelipatan" value={increment}
+            <input type="number" value={increment} placeholder="Kelipatan"
               onChange={(e) => setIncrement(Number(e.target.value))} className="w-full border p-2 mb-4 rounded" />
-
-            <button onClick={handleStartAuction}
-              className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded">
-              Mulai Lelang
-            </button>
+            <button onClick={handleStartAuction} className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded">Mulai Lelang</button>
           </div>
         )}
 
-        {/* Tab: Monitoring */}
         {tab === "monitor" && (
           <div>
             <h2 className="text-xl font-bold mb-4">Monitoring Lelang</h2>
 
             <div className="bg-gray-100 p-4 rounded mb-4">
-              {imageURLs.length > 0 && (
-                <div className="grid grid-cols-2 gap-2 mb-3">
-                  {imageURLs.map((url, i) => (
-                    <img key={i} src={url} alt={`Item-${i}`} className="rounded max-h-40 object-cover" />
-                  ))}
-                </div>
-              )}
+              <div className="flex gap-2 overflow-x-auto mb-4">
+                {imageURLs.map((url, i) => (
+                  <img key={i} src={url} alt={`item-${i}`} className="h-40 rounded" />
+                ))}
+              </div>
               <h3 className="text-lg font-bold">{itemName}</h3>
               <p className="mb-2">{itemDesc}</p>
               <p className="text-2xl font-bold text-blue-600">Rp {price.toLocaleString()}</p>
@@ -273,7 +291,6 @@ function AdminPanel() {
           </div>
         )}
 
-        {/* Tab: Verifikasi Peserta */}
         {tab === "verify" && (
           <div>
             <h2 className="text-xl font-bold mb-4">Verifikasi Peserta</h2>
