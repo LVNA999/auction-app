@@ -29,28 +29,28 @@ function AdminPanel() {
 
   const navigate = useNavigate();
 
-  // Cek autentikasi & otorisasi
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, async (user) => {
-      if (user) {
-        setAdminEmail(user.email);
-
-        // Verifikasi email admin di database
-        const adminRef = ref(db, `admins/${user.uid}`);
-        const snap = await get(adminRef);
-        if (snap.exists()) {
-          setIsAuthorized(true);
-        } else {
-          setIsAuthorized(false);
-          alert("Akun ini tidak memiliki akses admin.");
-          await signOut(auth);
-          navigate("/admin-login");
-        }
-      } else {
+      if (!user) {
         navigate("/admin-login");
+        return;
+      }
+  
+      const adminEmail = user.email;
+      const adminRef = ref(db, `admins`);
+      const snapshot = await get(adminRef);
+      const data = snapshot.val();
+  
+      const isAdmin = data && Object.values(data).includes(adminEmail);
+      if (!isAdmin) {
+        alert("Akun ini tidak memiliki akses admin.");
+        signOut(auth);
+        navigate("/admin-login");
+      } else {
+        setAdminEmail(adminEmail);
       }
     });
-
+  
     return () => unsub();
   }, []);
 
