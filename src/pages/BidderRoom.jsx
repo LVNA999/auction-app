@@ -56,9 +56,7 @@ function BidderRoom() {
   useEffect(() => {
     const priceRef = ref(db, "auction/currentPrice");
     const itemRef = ref(db, "auction/item");
-    const endRef = ref(db, "auction/ended");
     const timerRef = ref(db, "auction/timerEnd");
-    const winnerRef = ref(db, "auction/winner");
 
     const unsubPrice = onValue(priceRef, (snap) => {
       const val = snap.val();
@@ -74,27 +72,35 @@ function BidderRoom() {
       }
     });
 
-    const unsubEnd = onValue(endRef, (snap) => {
-      setAuctionEnded(!!snap.val());
-    });
-
     const unsubTimer = onValue(timerRef, (snap) => {
       const end = snap.val();
       setTimerEnd(end);
     });
 
-    const unsubWinner = onValue(winnerRef, (snap) => {
-      const data = snap.val();
-      if (data) setWinner(data);
-    });
-
     return () => {
       unsubPrice();
       unsubItem();
-      unsubEnd();
       unsubTimer();
-      unsubWinner();
     };
+  }, []);
+
+  useEffect(() => {
+    const endRef = ref(db, "auction/ended");
+    const winnerRef = ref(db, "auction/winner");
+
+    const unsubEnd = onValue(endRef, (snap) => {
+      const ended = !!snap.val();
+      setAuctionEnded(ended);
+
+      if (ended) {
+        onValue(winnerRef, (winnerSnap) => {
+          const winnerData = winnerSnap.val();
+          if (winnerData) setWinner(winnerData);
+        });
+      }
+    });
+
+    return () => unsubEnd();
   }, []);
 
   useEffect(() => {
@@ -107,7 +113,6 @@ function BidderRoom() {
 
       if (remaining <= 0) {
         clearInterval(interval);
-
         if (!status || status === "waiting") {
           const guestRef = ref(db, `auction/guests/${guestId}`);
           update(guestRef, {
@@ -256,7 +261,9 @@ function BidderRoom() {
               <div className="mt-4 bg-green-100 border border-green-300 text-green-700 p-3 rounded text-center">
                 <p className="font-bold">Pemenang:</p>
                 <p>{winner.name}</p>
-                <p className="text-sm text-gray-600 mt-1">Harga Menang: Rp {winner.price.toLocaleString()}</p>
+                <p className="text-sm text-gray-600 mt-1">
+                  Harga Menang: Rp {winner.price.toLocaleString()}
+                </p>
               </div>
             )}
           </>
