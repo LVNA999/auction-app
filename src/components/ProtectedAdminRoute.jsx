@@ -7,18 +7,17 @@ import { ref, get } from "firebase/database";
 
 function ProtectedAdminRoute({ children }) {
   const [checking, setChecking] = useState(true);
-  const [isAuthorized, setIsAuthorized] = useState(false);
+  const [authorized, setAuthorized] = useState(false);
   const navigate = useNavigate();
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       if (user) {
-        // Cek UID di path /admins/
         const adminRef = ref(db, `admins/${user.uid}`);
-        const snap = await get(adminRef);
+        const snapshot = await get(adminRef);
 
-        if (snap.exists()) {
-          setIsAuthorized(true);
+        if (snapshot.exists()) {
+          setAuthorized(true);
         } else {
           alert("Akun ini tidak memiliki akses admin.");
           await signOut(auth);
@@ -45,7 +44,7 @@ function ProtectedAdminRoute({ children }) {
     );
   }
 
-  return isAuthorized ? children : null;
+  return authorized ? children : null;
 }
 
 export default ProtectedAdminRoute;
