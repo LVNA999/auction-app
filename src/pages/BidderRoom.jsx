@@ -9,6 +9,7 @@ function BidderRoom() {
   const [isVerified, setIsVerified] = useState(false);
   const [isActive, setIsActive] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
+  const [foldReason, setFoldReason] = useState(null); // "manual" | "auto"
 
   const [currentPrice, setCurrentPrice] = useState(0);
   const [itemImage, setItemImage] = useState("");
@@ -21,7 +22,6 @@ function BidderRoom() {
 
   const navigate = useNavigate();
 
-  // Ambil ID dari localStorage
   useEffect(() => {
     const id = localStorage.getItem("bidderId");
     if (!id) {
@@ -31,7 +31,6 @@ function BidderRoom() {
     }
   }, [navigate]);
 
-  // Pantau data bidder
   useEffect(() => {
     if (!guestId) return;
     const guestRef = ref(db, `auction/guests/${guestId}`);
@@ -41,6 +40,9 @@ function BidderRoom() {
         setStatus(data.status || null);
         setIsVerified(data.verified ?? false);
         setIsActive(data.active ?? false);
+        if (data.status === "fold" && data.foldReason) {
+          setFoldReason(data.foldReason); // from database
+        }
       } else {
         localStorage.removeItem("bidderId");
         alert("Akun tidak ditemukan. Silakan login ulang.");
@@ -50,7 +52,6 @@ function BidderRoom() {
     });
   }, [guestId, navigate]);
 
-  // Pantau data lelang
   useEffect(() => {
     const priceRef = ref(db, "auction/currentPrice");
     const itemRef = ref(db, "auction/item");
@@ -88,7 +89,6 @@ function BidderRoom() {
     };
   }, []);
 
-  // Timer countdown
   useEffect(() => {
     if (!timerEnd) return;
 
@@ -96,32 +96,53 @@ function BidderRoom() {
       const now = Date.now();
       const remaining = Math.max(0, Math.floor((timerEnd - now) / 1000));
       setTimeLeft(remaining);
-      if (remaining <= 0) clearInterval(interval);
+
+      if (remaining <= 0) {
+        clearInterval(interval);
+
+        // Auto-fold jika belum call atau fold
+        if (!status || status === "waiting") {
+          const guestRef = ref(db, `auction/guests/${guestId}`);
+          update(guestRef, {
+            status: "fold",
+            foldReason: "auto",
+            timestamp: Date.now(),
+          });
+          setStatus("fold");
+          setFoldReason("auto");
+        }
+      }
     }, 1000);
 
     return () => clearInterval(interval);
-  }, [timerEnd]);
+  }, [timerEnd, guestId, status]);
 
-  const submitStatus = (newStatus) => {
+  const submitStatus = (newStatus, reason) => {
     if (!guestId) return;
     const guestRef = ref(db, `auction/guests/${guestId}`);
     update(guestRef, {
       status: newStatus,
+      foldReason: reason || null,
       timestamp: Date.now(),
     });
   };
 
   const handleCall = () => {
     setStatus("call");
+    setFoldReason(null);
     submitStatus("call");
   };
 
   const handleFold = () => {
-    setStatus("fold");
-    submitStatus("fold");
+    const confirmFold = window.confirm("Apakah kamu yakin ingin FOLD?");
+    if (confirmFold) {
+      setStatus("fold");
+      setFoldReason("manual");
+      submitStatus("fold", "manual");
+    }
   };
 
-  const hasFolded = status?.toLowerCase() === "fold";
+  const hasFolded = status === "fold";
 
   if (isLoading) {
     return (
@@ -202,6 +223,10 @@ function BidderRoom() {
               FOLD
             </button>
           </div>
+        ) : foldReason === "manual" ? (
+          <p className="text-indigo-600 font-semibold text-center mb-4">
+            Kamu memilih <strong>FOLD</strong>.
+          </p>
         ) : (
           <p className="text-yellow-600 font-semibold text-center mb-4">
             Kamu dinyatakan <strong>FOLD</strong> karena tidak melakukan call pada harga sebelumnya.
@@ -209,9 +234,9 @@ function BidderRoom() {
           </p>
         )}
 
-        {status && (
+        {status === "call" && (
           <p className="text-center text-sm text-gray-700">
-            Pilihan kamu: <span className="font-bold text-indigo-600">{status.toUpperCase()}</span>
+            Pilihan kamu: <span className="font-bold text-green-600">CALL</span>
           </p>
         )}
 
