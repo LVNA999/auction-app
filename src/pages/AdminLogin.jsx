@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { signInWithEmailAndPassword } from "firebase/auth";
-import { auth } from "../firebase";
+import { auth, db } from "../firebase";
+import { ref, get } from "firebase/database";
 import { useNavigate } from "react-router-dom";
 
 function AdminLogin() {
@@ -11,10 +12,23 @@ function AdminLogin() {
 
   const handleLogin = async (e) => {
     e.preventDefault();
+    setError("");
+
     try {
-      await signInWithEmailAndPassword(auth, email, password);
-      navigate("/admin");
+      const userCredential = await signInWithEmailAndPassword(auth, email, password);
+      const user = userCredential.user;
+
+      // 🔐 Cek otorisasi di Firebase Realtime Database
+      const adminRef = ref(db, `admins/${user.uid}`);
+      const snap = await get(adminRef);
+
+      if (snap.exists()) {
+        navigate("/admin");
+      } else {
+        setError("Akun ini tidak memiliki akses admin.");
+      }
     } catch (err) {
+      console.error("Login error:", err);
       setError("Login gagal. Periksa email dan password.");
     }
   };
