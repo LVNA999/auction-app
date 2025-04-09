@@ -22,44 +22,29 @@ function AdminPanel() {
 
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, (user) => {
-      if (user) {
-        setAdminEmail(user.email);
-      } else {
-        navigate("/admin-login");
-      }
+      if (user) setAdminEmail(user.email);
+      else navigate("/admin-login");
     });
     return () => unsub();
   }, []);
 
   useEffect(() => {
     const guestsRef = ref(db, "auction/guests");
-    const unsub = onValue(guestsRef, (snapshot) => {
+    const unsubGuests = onValue(guestsRef, (snapshot) => {
       const data = snapshot.val() || {};
-      const parsed = Object.entries(data).map(([id, value]) => ({
-        id,
-        ...value,
-      }));
+      const parsed = Object.entries(data).map(([id, value]) => ({ id, ...value }));
       setBidders(parsed);
     });
 
     const priceRef = ref(db, "auction/currentPrice");
-    const unsubPrice = onValue(priceRef, (snap) => {
-      const p = snap.val();
-      if (p) setPrice(p);
-    });
-
     const endedRef = ref(db, "auction/ended");
-    const unsubEnded = onValue(endedRef, (snap) => {
-      setAuctionEnded(snap.val() || false);
-    });
-
     const startedRef = ref(db, "auction/started");
-    const unsubStarted = onValue(startedRef, (snap) => {
-      setAuctionStarted(snap.val() || false);
-    });
-
     const itemRef = ref(db, "auction/item");
-    onValue(itemRef, (snap) => {
+
+    const unsubPrice = onValue(priceRef, (snap) => setPrice(snap.val() || 0));
+    const unsubEnded = onValue(endedRef, (snap) => setAuctionEnded(snap.val() || false));
+    const unsubStarted = onValue(startedRef, (snap) => setAuctionStarted(snap.val() || false));
+    const unsubItem = onValue(itemRef, (snap) => {
       const data = snap.val();
       if (data) {
         setItemName(data.name || "");
@@ -69,10 +54,11 @@ function AdminPanel() {
     });
 
     return () => {
-      unsub();
+      unsubGuests();
       unsubPrice();
       unsubEnded();
       unsubStarted();
+      unsubItem();
     };
   }, []);
 
@@ -108,21 +94,20 @@ function AdminPanel() {
     });
   };
 
-  const uploadToImgbb = async (file) => {
+  // ✅ Upload gambar ke Cloudinary
+  const uploadToCloudinary = async (file) => {
     const formData = new FormData();
-    formData.append("image", file);
+    formData.append("file", file);
+    formData.append("upload_preset", "upload_preset"); // Ganti sesuai preset yang kamu buat
 
-    const res = await fetch("https://api.imgbb.com/1/upload?key=85f68eb79400a84a41ea4f6d60e6796c", {
+    const res = await fetch("https://api.cloudinary.com/v1_1/dex2qqidi/image/upload", {
       method: "POST",
       body: formData,
     });
 
     const data = await res.json();
-    if (data.success) {
-      return data.data.url;
-    } else {
-      throw new Error("Upload gambar gagal");
-    }
+    if (data.secure_url) return data.secure_url;
+    else throw new Error("Upload ke Cloudinary gagal.");
   };
 
   const handleStartAuction = async () => {
@@ -132,7 +117,7 @@ function AdminPanel() {
     }
 
     try {
-      const downloadURL = await uploadToImgbb(imageFile);
+      const imageUrl = await uploadToCloudinary(imageFile);
 
       await set(ref(db, "auction/currentPrice"), price);
       await set(ref(db, "auction/started"), true);
@@ -140,21 +125,20 @@ function AdminPanel() {
       await set(ref(db, "auction/item"), {
         name: itemName,
         description: itemDesc,
-        image: downloadURL,
+        image: imageUrl,
       });
 
-      setImageURL(downloadURL);
+      setImageURL(imageUrl);
       setAuctionStarted(true);
       alert("Lelang dimulai!");
-    } catch (error) {
-      console.error("Gagal memulai lelang:", error);
-      alert("Gagal memulai lelang. Periksa koneksi atau file gambar.");
+    } catch (err) {
+      console.error(err);
+      alert("Gagal upload gambar. Coba lagi.");
     }
   };
 
-  const countStatus = (status) => {
-    return bidders.filter((b) => b.status === status).length;
-  };
+  const countStatus = (status) =>
+    bidders.filter((b) => b.status === status).length;
 
   const handleLogout = async () => {
     await signOut(auth);
@@ -179,7 +163,7 @@ function AdminPanel() {
         <h1 className="text-2xl font-bold mb-4">Admin Panel</h1>
 
         <div className="grid md:grid-cols-2 gap-6">
-          {/* === Panel Barang dan Kontrol === */}
+          {/* === Upload dan Kontrol Lelang === */}
           <div>
             {imageURL ? (
               <img src={imageURL} alt="Barang" className="rounded mb-4" />
@@ -277,7 +261,7 @@ function AdminPanel() {
             )}
           </div>
 
-          {/* === Panel Verifikasi dan Manajemen === */}
+          {/* === Panel Verifikasi Bidder === */}
           <div>
             <h2 className="text-xl font-semibold mb-4">Manajemen Bidder</h2>
 
