@@ -1,17 +1,18 @@
 import { useEffect, useState } from "react";
-import { db, auth } from "../firebase";
+import { useNavigate } from "react-router-dom";
 import {
   ref,
   set,
-  onValue,
-  update,
   get,
+  update,
+  onValue,
   child,
 } from "firebase/database";
+import { auth, db } from "../firebase";
 import { signOut, onAuthStateChanged } from "firebase/auth";
-import { useNavigate } from "react-router-dom";
 
 function AdminPanel() {
+  const navigate = useNavigate();
   const [tab, setTab] = useState("setup");
   const [adminEmail, setAdminEmail] = useState("");
   const [isAuthorized, setIsAuthorized] = useState(false);
@@ -24,11 +25,9 @@ function AdminPanel() {
   const [increment, setIncrement] = useState(10000);
   const [auctionStarted, setAuctionStarted] = useState(false);
   const [auctionEnded, setAuctionEnded] = useState(false);
-  const [bidders, setBidders] = useState([]);
   const [canStartTimer, setCanStartTimer] = useState(false);
+  const [bidders, setBidders] = useState([]);
   const [winner, setWinner] = useState(null);
-
-  const navigate = useNavigate();
 
   // Cek autentikasi & otorisasi
   useEffect(() => {
@@ -51,19 +50,28 @@ function AdminPanel() {
     });
 
     return () => unsub();
-  }, []);
+  }, [navigate]);
 
-  // Load data lelang
+  // Load data
   useEffect(() => {
-    onValue(ref(db, "auction/guests"), (snap) => {
+    const unsubGuests = onValue(ref(db, "auction/guests"), (snap) => {
       const data = snap.val() || {};
-      const parsed = Object.entries(data).map(([id, value]) => ({ id, ...value }));
+      const parsed = Object.entries(data).map(([id, val]) => ({ id, ...val }));
       setBidders(parsed);
     });
 
-    onValue(ref(db, "auction/currentPrice"), (snap) => setPrice(snap.val() || 0));
-    onValue(ref(db, "auction/started"), (snap) => setAuctionStarted(snap.val() || false));
-    onValue(ref(db, "auction/ended"), (snap) => setAuctionEnded(snap.val() || false));
+    onValue(ref(db, "auction/currentPrice"), (snap) => {
+      const val = snap.val();
+      if (val) setPrice(val);
+    });
+
+    onValue(ref(db, "auction/started"), (snap) => {
+      setAuctionStarted(!!snap.val());
+    });
+
+    onValue(ref(db, "auction/ended"), (snap) => {
+      setAuctionEnded(!!snap.val());
+    });
 
     onValue(ref(db, "auction/item"), (snap) => {
       const data = snap.val();
@@ -74,27 +82,27 @@ function AdminPanel() {
       }
     });
 
-    onValue(ref(db, "auction/winner"), (snap) => setWinner(snap.val()));
+    onValue(ref(db, "auction/canStartTimer"), (snap) => {
+      setCanStartTimer(!!snap.val());
+    });
+
+    onValue(ref(db, "auction/winner"), (snap) => {
+      setWinner(snap.val() || null);
+    });
+
+    return () => unsubGuests();
   }, []);
 
-  const uploadToCloudinary = async (files) => {
-    const urls = [];
-
-    for (let file of files) {
-      const formData = new FormData();
-      formData.append("file", file);
-      formData.append("upload_preset", "upload_preset");
-
-      const res = await fetch("https://api.cloudinary.com/v1_1/dex2qqidi/image/upload", {
-        method: "POST",
-        body: formData,
-      });
-
-      const data = await res.json();
-      if (data.secure_url) urls.push(data.secure_url);
-    }
-
-    return urls;
+  const uploadToCloudinary = async (file) => {
+    const formData = new FormData();
+    formData.append("file", file);
+    formData.append("upload_preset", "upload_preset");
+    const res = await fetch("https://api.cloudinary.com/v1_1/dex2qqidi/image/upload", {
+      method: "POST",
+      body: formData,
+    });
+    const data = await res.json();
+    return data.secure_url;
   };
 
   const handleStartAuction = async () => {
@@ -103,22 +111,25 @@ function AdminPanel() {
       return;
     }
 
-    const uploadedImages = await uploadToCloudinary(imageFiles);
+    const uploadedURLs = await Promise.all(
+      imageFiles.map((file) => uploadToCloudinary(file))
+    );
 
     await set(ref(db, "auction"), {
       currentPrice: price,
       started: true,
       ended: false,
+      canStartTimer: true,
       item: {
         name: itemName,
         description: itemDesc,
-        images: uploadedImages,
+        images: uploadedURLs,
       },
     });
 
-    const snapshot = await get(child(ref(db), "auction/guests"));
-    if (snapshot.exists()) {
-      const data = snapshot.val();
+    const snap = await get(child(ref(db), "auction/guests"));
+    if (snap.exists()) {
+      const data = snap.val();
       for (let id in data) {
         if (data[id].verified && data[id].active) {
           update(ref(db, `auction/guests/${id}`), {
@@ -128,29 +139,28 @@ function AdminPanel() {
       }
     }
 
-    setCanStartTimer(true);
     alert("Lelang dimulai!");
   };
 
-  const increasePrice = () => {
+  const increasePrice = async () => {
     const newPrice = price + increment;
-    setPrice(newPrice);
-    set(ref(db, "auction/currentPrice"), newPrice);
-    setCanStartTimer(true);
+    await set(ref(db, "auction/currentPrice"), newPrice);
+    await set(ref(db, "auction/canStartTimer"), true);
   };
 
-  const handleStartTimer = () => {
-    const endTime = Date.now() + 30000;
-    set(ref(db, "auction/timerEnd"), endTime);
-    setCanStartTimer(false);
+  const handleStartTimer = async () => {
+    const end = Date.now() + 30000;
+    await set(ref(db, "auction/timerEnd"), end);
+    await set(ref(db, "auction/canStartTimer"), false);
   };
 
   const endAuction = async () => {
-    const confirmEnd = window.confirm("Apakah kamu yakin ingin mengakhiri lelang?");
+    const confirmEnd = window.confirm("Yakin ingin mengakhiri lelang?");
     if (!confirmEnd) return;
 
     await set(ref(db, "auction/ended"), true);
     await set(ref(db, "auction/started"), false);
+    await set(ref(db, "auction/canStartTimer"), false);
 
     const lastCaller = [...bidders].reverse().find((b) => b.status === "call");
     if (lastCaller) {
@@ -160,10 +170,8 @@ function AdminPanel() {
         id: lastCaller.id,
         price,
       });
-      setWinner(lastCaller);
     } else {
       await set(ref(db, "auction/winner"), null);
-      setWinner(null);
     }
   };
 
@@ -176,9 +184,7 @@ function AdminPanel() {
   };
 
   const toggleBidderActive = (id, active) => {
-    update(ref(db, `auction/guests/${id}`), {
-      active: !active,
-    });
+    update(ref(db, `auction/guests/${id}`), { active: !active });
   };
 
   const logout = async () => {
@@ -186,16 +192,22 @@ function AdminPanel() {
     navigate("/admin-login");
   };
 
-  if (!isAuthorized) return null;
-
   return (
     <div className="min-h-screen bg-gray-100 p-6">
       <div className="max-w-6xl mx-auto bg-white p-6 rounded shadow">
-        <div className="flex justify-between mb-4">
-          <p>Login sebagai: <strong>{adminEmail}</strong></p>
-          <button onClick={logout} className="bg-red-500 text-white px-4 py-1 rounded">Logout</button>
+        <div className="flex justify-between items-center mb-4">
+          <p className="text-sm text-gray-600">
+            Login sebagai: <strong>{adminEmail}</strong>
+          </p>
+          <button
+            onClick={logout}
+            className="bg-red-500 text-white px-4 py-1 rounded"
+          >
+            Logout
+          </button>
         </div>
 
+        {/* Tab Navigation */}
         <div className="flex gap-4 mb-6">
           <button onClick={() => setTab("setup")} disabled={auctionStarted}
             className={`px-4 py-2 rounded ${tab === "setup" ? "bg-blue-500 text-white" : "bg-gray-200"}`}>
@@ -211,46 +223,72 @@ function AdminPanel() {
           </button>
         </div>
 
-        {/* Setup Lelang */}
+        {/* TAB: SETUP */}
         {tab === "setup" && (
           <div>
-            {imageURLs.length > 0 && (
-              <div className="flex overflow-x-auto gap-2 mb-4">
-                {imageURLs.map((url, i) => (
-                  <img key={i} src={url} alt={`img-${i}`} className="h-48 rounded" />
-                ))}
-              </div>
-            )}
-            <input type="file" accept="image/*" multiple onChange={(e) => setImageFiles([...e.target.files])} className="mb-2" />
-            <input type="text" value={itemName} placeholder="Nama Barang" onChange={(e) => setItemName(e.target.value)} className="w-full border p-2 mb-2 rounded" />
-            <textarea value={itemDesc} placeholder="Deskripsi" onChange={(e) => setItemDesc(e.target.value)} className="w-full border p-2 mb-2 rounded" />
-            <input type="number" value={price} placeholder="Harga Awal" onChange={(e) => setPrice(Number(e.target.value))} className="w-full border p-2 mb-2 rounded" />
-            <input type="number" value={increment} placeholder="Kelipatan" onChange={(e) => setIncrement(Number(e.target.value))} className="w-full border p-2 mb-4 rounded" />
-            <button onClick={handleStartAuction} className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded">Mulai Lelang</button>
+            <input
+              type="file"
+              accept="image/*"
+              multiple
+              onChange={(e) => setImageFiles(Array.from(e.target.files))}
+              className="mb-2"
+            />
+            <input
+              type="text"
+              placeholder="Nama Barang"
+              value={itemName}
+              onChange={(e) => setItemName(e.target.value)}
+              className="w-full border p-2 mb-2 rounded"
+            />
+            <textarea
+              placeholder="Deskripsi"
+              value={itemDesc}
+              onChange={(e) => setItemDesc(e.target.value)}
+              className="w-full border p-2 mb-2 rounded"
+            />
+            <input
+              type="number"
+              placeholder="Harga Awal"
+              value={price}
+              onChange={(e) => setPrice(Number(e.target.value))}
+              className="w-full border p-2 mb-2 rounded"
+            />
+            <input
+              type="number"
+              placeholder="Kelipatan"
+              value={increment}
+              onChange={(e) => setIncrement(Number(e.target.value))}
+              className="w-full border p-2 mb-4 rounded"
+            />
+            <button
+              onClick={handleStartAuction}
+              className="bg-green-600 text-white px-4 py-2 rounded"
+            >
+              Mulai Lelang
+            </button>
           </div>
         )}
 
-        {/* Monitoring */}
+        {/* TAB: MONITORING */}
         {tab === "monitor" && (
           <div>
-            <h2 className="text-xl font-bold mb-4">Monitoring Lelang</h2>
-            <div className="bg-gray-100 p-4 rounded mb-4">
-              {imageURLs.length > 0 && (
-                <div className="flex overflow-x-auto gap-2 mb-4">
-                  {imageURLs.map((url, i) => (
-                    <img key={i} src={url} alt={`img-${i}`} className="h-48 rounded" />
-                  ))}
-                </div>
-              )}
-              <h3 className="text-lg font-bold">{itemName}</h3>
-              <p className="mb-2">{itemDesc}</p>
-              <p className="text-2xl font-bold text-blue-600">Rp {price.toLocaleString()}</p>
+            <div className="mb-4">
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 mb-4">
+                {imageURLs.map((url, idx) => (
+                  <img key={idx} src={url} alt={`Item ${idx + 1}`} className="rounded max-h-40 object-cover w-full" />
+                ))}
+              </div>
+              <h2 className="text-xl font-semibold">{itemName}</h2>
+              <p>{itemDesc}</p>
+              <p className="text-2xl font-bold text-blue-600 mt-2">
+                Rp {price.toLocaleString()}
+              </p>
             </div>
 
             <div className="flex gap-4 mb-4">
               <button onClick={increasePrice} className="bg-blue-600 text-white px-4 py-2 rounded">Naikkan Harga</button>
               <button onClick={handleStartTimer} disabled={!canStartTimer}
-                className={`px-4 py-2 rounded text-white ${canStartTimer ? "bg-yellow-500" : "bg-gray-400"}`}>
+                className={`text-white px-4 py-2 rounded ${canStartTimer ? "bg-yellow-500" : "bg-gray-400"}`}>
                 Mulai Timer
               </button>
               <button onClick={endAuction} className="bg-red-600 text-white px-4 py-2 rounded">Akhiri Lelang</button>
@@ -267,27 +305,31 @@ function AdminPanel() {
                 <h3 className="text-lg font-bold text-green-700">🎉 Pemenang:</h3>
                 <p>Nama: <strong>{winner.name}</strong></p>
                 <p>Email: <strong>{winner.email}</strong></p>
-                <p>Harga: <strong>Rp {winner.price?.toLocaleString() || "-"}</strong></p>
+                <p>Harga: <strong>Rp {winner.price.toLocaleString()}</strong></p>
               </div>
             )}
           </div>
         )}
 
-        {/* Verifikasi Peserta */}
+        {/* TAB: VERIFIKASI PESERTA */}
         {tab === "verify" && (
           <div>
             <h2 className="text-xl font-bold mb-4">Verifikasi Peserta</h2>
             {bidders.map((b) => (
               <div key={b.id} className="flex justify-between items-center bg-gray-100 p-3 rounded mb-2">
                 <div>
-                  <p className="font-medium">{b.name} {b.verified ? "(✔ Terverifikasi)" : "(❌ Belum)"}</p>
+                  <p className="font-medium">{b.name} {b.verified ? "(✔)" : "(❌)"}</p>
                   <p className="text-sm text-gray-600">Status: {b.active ? "Aktif" : "Nonaktif"}</p>
                 </div>
                 <div className="flex gap-2">
-                  {!b.verified ? (
-                    <button onClick={() => verifyBidder(b.id)} className="bg-green-500 text-white px-3 py-1 rounded">Verifikasi</button>
-                  ) : (
-                    <button onClick={() => toggleBidderActive(b.id, b.active)} className={`text-white px-3 py-1 rounded ${b.active ? "bg-yellow-500" : "bg-blue-500"}`}>
+                  {!b.verified && (
+                    <button onClick={() => verifyBidder(b.id)} className="bg-green-500 text-white px-3 py-1 rounded">
+                      Verifikasi
+                    </button>
+                  )}
+                  {b.verified && (
+                    <button onClick={() => toggleBidderActive(b.id, b.active)}
+                      className={`text-white px-3 py-1 rounded ${b.active ? "bg-yellow-500" : "bg-blue-500"}`}>
                       {b.active ? "Nonaktifkan" : "Aktifkan"}
                     </button>
                   )}
