@@ -29,7 +29,7 @@ function AdminPanel() {
   const [bidders, setBidders] = useState([]);
   const [winner, setWinner] = useState(null);
 
-  // Cek autentikasi & otorisasi
+  // Autentikasi dan otorisasi admin
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, async (user) => {
       if (user) {
@@ -39,7 +39,6 @@ function AdminPanel() {
         if (snap.exists()) {
           setIsAuthorized(true);
         } else {
-          setIsAuthorized(false);
           alert("Akun ini tidak memiliki akses admin.");
           await signOut(auth);
           navigate("/admin-login");
@@ -52,7 +51,7 @@ function AdminPanel() {
     return () => unsub();
   }, [navigate]);
 
-  // Load data
+  // Sinkronisasi data realtime dari Firebase
   useEffect(() => {
     const unsubGuests = onValue(ref(db, "auction/guests"), (snap) => {
       const data = snap.val() || {};
@@ -60,20 +59,20 @@ function AdminPanel() {
       setBidders(parsed);
     });
 
-    onValue(ref(db, "auction/currentPrice"), (snap) => {
+    const unsubPrice = onValue(ref(db, "auction/currentPrice"), (snap) => {
       const val = snap.val();
       if (val) setPrice(val);
     });
 
-    onValue(ref(db, "auction/started"), (snap) => {
+    const unsubStarted = onValue(ref(db, "auction/started"), (snap) => {
       setAuctionStarted(!!snap.val());
     });
 
-    onValue(ref(db, "auction/ended"), (snap) => {
+    const unsubEnded = onValue(ref(db, "auction/ended"), (snap) => {
       setAuctionEnded(!!snap.val());
     });
 
-    onValue(ref(db, "auction/item"), (snap) => {
+    const unsubItem = onValue(ref(db, "auction/item"), (snap) => {
       const data = snap.val();
       if (data) {
         setItemName(data.name || "");
@@ -82,15 +81,23 @@ function AdminPanel() {
       }
     });
 
-    onValue(ref(db, "auction/canStartTimer"), (snap) => {
+    const unsubCanStartTimer = onValue(ref(db, "auction/canStartTimer"), (snap) => {
       setCanStartTimer(!!snap.val());
     });
 
-    onValue(ref(db, "auction/winner"), (snap) => {
+    const unsubWinner = onValue(ref(db, "auction/winner"), (snap) => {
       setWinner(snap.val() || null);
     });
 
-    return () => unsubGuests();
+    return () => {
+      unsubGuests();
+      unsubPrice();
+      unsubStarted();
+      unsubEnded();
+      unsubItem();
+      unsubCanStartTimer();
+      unsubWinner();
+    };
   }, []);
 
   const uploadToCloudinary = async (file) => {
@@ -207,7 +214,6 @@ function AdminPanel() {
           </button>
         </div>
 
-        {/* Tab Navigation */}
         <div className="flex gap-4 mb-6">
           <button onClick={() => setTab("setup")} disabled={auctionStarted}
             className={`px-4 py-2 rounded ${tab === "setup" ? "bg-blue-500 text-white" : "bg-gray-200"}`}>
@@ -223,7 +229,6 @@ function AdminPanel() {
           </button>
         </div>
 
-        {/* TAB: SETUP */}
         {tab === "setup" && (
           <div>
             <input
@@ -269,7 +274,6 @@ function AdminPanel() {
           </div>
         )}
 
-        {/* TAB: MONITORING */}
         {tab === "monitor" && (
           <div>
             <div className="mb-4">
@@ -311,7 +315,6 @@ function AdminPanel() {
           </div>
         )}
 
-        {/* TAB: VERIFIKASI PESERTA */}
         {tab === "verify" && (
           <div>
             <h2 className="text-xl font-bold mb-4">Verifikasi Peserta</h2>
